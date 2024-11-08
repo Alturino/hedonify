@@ -1,33 +1,52 @@
-package metric
+package otel
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
+	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/sdk/metric"
+
+	"github.com/Alturino/ecommerce/internal/log"
 )
 
-func InitMetric(c context.Context) (*metric.MeterProvider, error) {
+func initMetric(c context.Context, endpoint string) (*metric.MeterProvider, error) {
+	pLogger := zerolog.Ctx(c)
+	logger := pLogger.With().
+		Str(log.KeyTag, "initMetric").
+		Logger()
+
+	logger.Info().
+		Str(log.KeyProcess, "Init MetricExporter").
+		Msg("initializing metricExporter")
 	metricExporter, err := otlpmetricgrpc.New(
 		c,
-		otlpmetricgrpc.WithEndpoint("otel-collector:4317"),
+		otlpmetricgrpc.WithEndpoint(endpoint),
 		otlpmetricgrpc.WithInsecure(),
 	)
 	if err != nil {
-		slog.ErrorContext(
-			c,
-			"failed creating metricExporter with error=%s", err.Error(),
-			slog.String("process", "InitMetric"),
-		)
+		logger.Error().
+			Err(err).
+			Str(log.KeyProcess, "Init MetricExporter").
+			Msg("failed to initializing metricExporter")
 		return nil, err
 	}
+	logger.Info().
+		Str(log.KeyProcess, "Init MetricExporter").
+		Msg("initialized metricExporter")
 
+	logger.Info().
+		Str(log.KeyProcess, "Init MetricProvider").
+		Msg("initializing meterProvider")
 	meterProvider := metric.NewMeterProvider(
 		metric.WithReader(
 			metric.NewPeriodicReader(metricExporter, metric.WithInterval(5*time.Second)),
 		),
 	)
+	logger.Info().
+		Str(log.KeyProcess, "Init MetricProvider").
+		Msg("initialized meterProvider")
+
 	return meterProvider, nil
 }
