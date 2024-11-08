@@ -1,4 +1,4 @@
-package otel
+package trace
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/Alturino/ecommerce/internal/log"
 )
 
-func initTrace(c context.Context, endpoint string) (*trace.TracerProvider, error) {
+func InitTracerProvider(c context.Context, endpoint string) (*trace.TracerProvider, error) {
 	plogger := zerolog.Ctx(c)
 	logger := plogger.With().
 		Str(log.KeyTag, "initTrace").

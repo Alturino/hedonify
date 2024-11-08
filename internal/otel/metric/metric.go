@@ -1,4 +1,4 @@
-package otel
+package metric
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/Alturino/ecommerce/internal/log"
 )
 
-func initMetric(c context.Context, endpoint string) (*metric.MeterProvider, error) {
+func InitMetricProvider(c context.Context, endpoint string) (*metric.MeterProvider, error) {
 	pLogger := zerolog.Ctx(c)
 	logger := pLogger.With().
 		Str(log.KeyTag, "initMetric").
