@@ -1,0 +1,106 @@
+services:
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:11.3.0-ubuntu
+    volumes:
+      - ./observability/grafana/provisioning/datasources.yaml:/etc/grafana/provisioning/datasources/default.yaml
+      - ./observability/grafana/provisioning/dashboards.yaml:/etc/grafana/provisioning/dashboards/default.yaml
+      - ./observability/grafana/dashboards/node-exporter.json:/var/lib/grafana/dashboards/node-exporter.json
+    depends_on:
+      - loki
+      - prometheus
+    environment:
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    ports:
+      - "3000:3000"
+    networks:
+      - logging
+  loki:
+    container_name: loki
+    image: grafana/loki:2.9.2
+    ports:
+      - 3100:3100
+    command: ["-config.file=/etc/loki/loki.yaml", "-config.expand-env=true"]
+    volumes:
+      - ./observability/loki.yaml:/etc/loki/loki.yaml
+    networks:
+      - logging
+    env_file: .env
+  otel-collector:
+    container_name: otel-collector
+    image: otel/opentelemetry-collector-contrib:0.112.0
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otel-collector.yaml
+    expose:
+      - 4317
+      - 4318
+    ports:
+      - "1888:1888" # pprof extension
+      - "8888:8888" # Prometheus metrics exposed by the collector
+      - "8889:8889" # Prometheus exporter metrics
+      - "13133:13133" # health_check extension
+    networks:
+      - logging
+  jaeger:
+    container_name: jaeger
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - 16686:16686
+    expose:
+      - 4317
+      - 4318
+    networks:
+      - logging
+    depends_on:
+      - otel-collector
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus.yaml
+      - --enable-feature=exemplar-storage
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --web.console.templates=/etc/prometheus/consoles
+      - --web.enable-lifecycle
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./observability/prometheus.yaml:/etc/prometheus.yaml
+      - prometheus:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - node-exporter
+    networks:
+      - logging
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: node-exporter
+    restart: unless-stopped
+    ports:
+      - 9100:9100
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    networks:
+      - logging
+networks:
+  logging:
+    name: logging
+volumes:
+  postgres:
+    name: postgres
+  prometheus:
+    name: prometheus
