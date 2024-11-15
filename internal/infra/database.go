@@ -1,0 +1,101 @@
+package database
+
+import (
+	"database/sql"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/lib/pq"
+	"github.com/rs/zerolog"
+	"github.com/uptrace/opentelemetry-go-extra/otelsql"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+
+	"github.com/Alturino/ecommerce/internal/config"
+	"github.com/Alturino/ecommerce/internal/log"
+)
+
+func NewDatabaseClient(
+	dbConfig config.Database,
+	logger *zerolog.Logger,
+) *sql.DB {
+	logger.Info().
+		Str(log.KeyProcess, "NewPostgreSQLClient").
+		Msgf("initiate connection to database")
+	defer func() {
+		logger.Info().
+			Str(log.KeyProcess, "NewPostgreSQLClient").
+			Msgf("successed connecting to database")
+	}()
+	postgresUrl := fmt.Sprintf(
+		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
+		dbConfig.Username,
+		dbConfig.Password,
+		dbConfig.Host,
+		int(dbConfig.Port),
+		dbConfig.DbName,
+	)
+
+	db, err := otelsql.Open(
+		"postgres",
+		postgresUrl,
+		otelsql.WithAttributes(semconv.DBSystemPostgreSQL),
+		otelsql.WithDBName(dbConfig.DbName),
+	)
+	if err != nil {
+		logger.Fatal().
+			Err(err).
+			Str(log.KeyProcess, "NewPostgreSQLClient").
+			Msgf("failed opening connection to postgres with error=%s", err.Error())
+	}
+
+	err = db.Ping()
+	if err != nil {
+		logger.Fatal().
+			Err(err).
+			Str(log.KeyProcess, "NewPostgreSQLClient").
+			Msgf("failed pinging connection to postgres with error=%s", err.Error())
+	}
+
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
+	if err != nil {
+		logger.Fatal().
+			Err(err).
+			Str(log.KeyProcess, "NewPostgreSQLClient").
+			Msgf("failed creating postgres driver to do migration with error=%s", err.Error())
+	}
+
+	migration, err := migrate.NewWithDatabaseInstance(dbConfig.MigrationPath, postgresUrl, driver)
+	if err != nil {
+		logger.Fatal().
+			Err(err).
+			Str(log.KeyProcess, "NewPostgreSQLClient").
+			Msgf("failed migration postgres with error=%s", err.Error())
+	}
+
+	err = migration.Down()
+	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		logger.Fatal().
+			Err(err).
+			Str(log.KeyProcess, "NewPostgreSQLClient").
+			Msgf("failed migration down postgres with error=%s", err.Error())
+	}
+
+	err = migration.Up()
+	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		logger.Fatal().
+			Err(err).
+			Str(log.KeyProcess, "NewPostgreSQLClient").
+			Msgf("failed migration up postgres with error=%s", err.Error())
+	}
+
+	db.SetConnMaxLifetime(time.Minute * 15)
+	db.SetConnMaxIdleTime(time.Minute * 5)
+	db.SetMaxOpenConns(int(dbConfig.MaxConnections))
+	db.SetMaxIdleConns(int(dbConfig.MinConnections))
+
+	return db
+}

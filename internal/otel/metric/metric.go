@@ -12,8 +12,7 @@ import (
 )
 
 func InitMetricProvider(c context.Context, endpoint string) (*metric.MeterProvider, error) {
-	pLogger := zerolog.Ctx(c)
-	logger := pLogger.With().
+	logger := zerolog.Ctx(c).With().
 		Str(log.KeyTag, "initMetric").
 		Logger()
 

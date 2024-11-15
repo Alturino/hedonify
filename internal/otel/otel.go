@@ -2,6 +2,8 @@ package otel
 
 import (
 	"context"
+	"errors"
+	"sync"
 
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
@@ -22,9 +24,11 @@ func newPropagator() propagation.TextMapPropagator {
 	return propagator
 }
 
-func InitOtelSdk(c context.Context) (shutdownFuncs []ShutdownFunc, err error) {
-	pLogger := zerolog.Ctx(c)
-	logger := pLogger.With().Str(log.KeyTag, "InitOtelSdk").Logger()
+func InitOtelSdk(c context.Context, serviceName string) (shutdownFuncs []ShutdownFunc, err error) {
+	logger := zerolog.Ctx(c).
+		With().
+		Str(log.KeyTag, "InitOtelSdk").
+		Logger()
 
 	logger.Info().
 		Str(log.KeyProcess, "Init Propagator").
@@ -38,7 +42,7 @@ func InitOtelSdk(c context.Context) (shutdownFuncs []ShutdownFunc, err error) {
 	logger.Info().
 		Str(log.KeyProcess, "Init TracerProvider").
 		Msg("initializing otel tracerProvider")
-	tracerProvider, err := trace.InitTracerProvider(c, "otel-collector:4317")
+	tracerProvider, err := trace.InitTracerProvider(c, "otel-collector:4317", serviceName)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -70,4 +74,20 @@ func InitOtelSdk(c context.Context) (shutdownFuncs []ShutdownFunc, err error) {
 		Msg("initialized meterProvider")
 
 	return shutdownFuncs, nil
+}
+
+func ShutdownOtel(c context.Context, shutdownFuncs []ShutdownFunc) error {
+	var wg sync.WaitGroup
+	var err error
+	for _, shutdown := range shutdownFuncs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := shutdown(c); err != nil {
+				err = errors.Join(err)
+			}
+		}()
+	}
+	wg.Wait()
+	return err
 }
