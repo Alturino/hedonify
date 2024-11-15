@@ -1,6 +1,6 @@
 env: dev # production
 application:
-  name: user-service
+  name: order-service
   host: 0.0.0.0
   port: 8080
   secretkey: secretkey
