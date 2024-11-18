@@ -1,22 +1,26 @@
+@base=http://localhost:8080
+
 # @name register
-### register user
-POST http://localhost:8080/users/register HTTP/1.1
+###
+POST {{base}}/users/register HTTP/1.1
 accept: application/json
 content-type: application/json
 
 {
-  "email": "user@test.com"
-  "username": "user1"
+  "email": "user@test.com",
+  "username": "user1",
   "password": "password"
 }
+
 
 # @name login
-### login user
-POST http://localhost:8080/users/login HTTP/1.1
+### login
+POST {{base}}/users/login HTTP/1.1
 accept: application/json
 content-type: application/json
 
 {
-  "email": "user@test.com"
+  "email": "user@test.com",
   "password": "password"
 }
+

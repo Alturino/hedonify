@@ -35,10 +35,11 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 	c, span := inOtel.Tracer.Start(r.Context(), "UserController Login")
 	defer span.End()
 
-	pLogger := zerolog.Ctx(r.Context())
-	logger := pLogger.With().
+	logger := zerolog.Ctx(c).
+		With().
 		Str(log.KeyTag, "UserController Login").
 		Logger()
+	c = logger.WithContext(c)
 
 	logger.Info().
 		Str(log.KeyProcess, "validating requestbody").
@@ -57,7 +58,10 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger = logger.With().Any(log.KeyRequestBody, reqBody).Logger()
+	logger = logger.With().
+		Any(log.KeyRequestBody, reqBody).
+		Logger()
+	c = logger.WithContext(c)
 	logger.Info().
 		Str(log.KeyProcess, "validating requestbody").
 		Msg("decoded request body")
@@ -73,7 +77,7 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 	logger.Info().
 		Str(log.KeyProcess, "validating requestbody").
 		Msg("validating request body")
-	if err := validate.StructCtx(r.Context(), reqBody); err != nil {
+	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%s", err.Error())
 		logger.Error().
 			Err(err).
@@ -93,7 +97,7 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 	logger.Info().
 		Str(log.KeyProcess, "login").
 		Msg("login")
-	_, err := u.service.Login(c, reqBody)
+	token, err := u.service.Login(c, reqBody)
 	if err != nil && errors.Is(err, inErrors.ErrUserNotFound) {
 		logger.Error().
 			Err(errors.Join(err, inErrors.ErrUserNotFound)).
@@ -109,6 +113,15 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 	logger.Info().
 		Str(log.KeyProcess, "login").
 		Msg("login success")
+
+	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		"status":     "success",
+		"statusCode": http.StatusOK,
+		"message":    "login success",
+		"data": map[string]string{
+			"token": token,
+		},
+	})
 }
 
 func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
