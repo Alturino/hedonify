@@ -24,6 +24,9 @@ func New(db DBTX) *Queries {
 func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	q := Queries{db: db}
 	var err error
+	if q.findProductByIdOrNameStmt, err = db.PrepareContext(ctx, findProductByIdOrName); err != nil {
+		return nil, fmt.Errorf("error preparing query FindProductByIdOrName: %w", err)
+	}
 	if q.getProductsStmt, err = db.PrepareContext(ctx, getProducts); err != nil {
 		return nil, fmt.Errorf("error preparing query GetProducts: %w", err)
 	}
@@ -35,6 +38,11 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 
 func (q *Queries) Close() error {
 	var err error
+	if q.findProductByIdOrNameStmt != nil {
+		if cerr := q.findProductByIdOrNameStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing findProductByIdOrNameStmt: %w", cerr)
+		}
+	}
 	if q.getProductsStmt != nil {
 		if cerr := q.getProductsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getProductsStmt: %w", cerr)
@@ -82,17 +90,19 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                DBTX
-	tx                *sql.Tx
-	getProductsStmt   *sql.Stmt
-	insertProductStmt *sql.Stmt
+	db                        DBTX
+	tx                        *sql.Tx
+	findProductByIdOrNameStmt *sql.Stmt
+	getProductsStmt           *sql.Stmt
+	insertProductStmt         *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                tx,
-		tx:                tx,
-		getProductsStmt:   q.getProductsStmt,
-		insertProductStmt: q.insertProductStmt,
+		db:                        tx,
+		tx:                        tx,
+		findProductByIdOrNameStmt: q.findProductByIdOrNameStmt,
+		getProductsStmt:           q.getProductsStmt,
+		insertProductStmt:         q.insertProductStmt,
 	}
 }

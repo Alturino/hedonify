@@ -8,6 +8,11 @@ content-type: application/json
 
 {
   "name": "product 1",
-  "price": "12345.100"
+  "price": "12345.100",
+  "amount": 100
 }
 
+# @name FindProducts
+###
+GET {{base}}?id="2ae2756f-08bd-4687-a6ee-24b3d9cd4a5a"&name="product 1" HTTP/1.1
+accept: application/json

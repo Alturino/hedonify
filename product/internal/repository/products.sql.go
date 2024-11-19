@@ -7,10 +7,53 @@ package repository
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
+const findProductByIdOrName = `-- name: FindProductByIdOrName :many
+select id, product_name, price, amount, created_at, updated_at
+from products
+where id = $1 or product_name ilike '%' || $2::text || '%'
+`
+
+type FindProductByIdOrNameParams struct {
+	ID      uuid.UUID `json:"id"`
+	Column2 string    `json:"column_2"`
+}
+
+func (q *Queries) FindProductByIdOrName(ctx context.Context, arg FindProductByIdOrNameParams) ([]Product, error) {
+	rows, err := q.query(ctx, q.findProductByIdOrNameStmt, findProductByIdOrName, arg.ID, arg.Column2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Product
+	for rows.Next() {
+		var i Product
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProductName,
+			&i.Price,
+			&i.Amount,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProducts = `-- name: GetProducts :many
-select id, product_name, price, created_at, updated_at from products
+select id, product_name, price, amount, created_at, updated_at from products
 `
 
 func (q *Queries) GetProducts(ctx context.Context) ([]Product, error) {
@@ -26,6 +69,7 @@ func (q *Queries) GetProducts(ctx context.Context) ([]Product, error) {
 			&i.ID,
 			&i.ProductName,
 			&i.Price,
+			&i.Amount,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -43,21 +87,25 @@ func (q *Queries) GetProducts(ctx context.Context) ([]Product, error) {
 }
 
 const insertProduct = `-- name: InsertProduct :one
-insert into products (product_name, price) values ($1, $2) returning id, product_name, price, created_at, updated_at
+insert into products (product_name, price, amount) values (
+    $1, $2, $3
+) returning id, product_name, price, amount, created_at, updated_at
 `
 
 type InsertProductParams struct {
 	ProductName string `json:"product_name"`
 	Price       string `json:"price"`
+	Amount      int32  `json:"amount"`
 }
 
 func (q *Queries) InsertProduct(ctx context.Context, arg InsertProductParams) (Product, error) {
-	row := q.queryRow(ctx, q.insertProductStmt, insertProduct, arg.ProductName, arg.Price)
+	row := q.queryRow(ctx, q.insertProductStmt, insertProduct, arg.ProductName, arg.Price, arg.Amount)
 	var i Product
 	err := row.Scan(
 		&i.ID,
 		&i.ProductName,
 		&i.Price,
+		&i.Amount,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog"
 
@@ -21,7 +22,7 @@ func NewProductService(queries *repository.Queries) ProductService {
 
 func (p *ProductService) InsertProduct(
 	c context.Context,
-	param request.ProductRequest,
+	param request.InsertProductRequest,
 ) (repository.Product, error) {
 	c, span := otel.Tracer.Start(c, "ProductService InsertProduct")
 	defer span.End()
@@ -36,7 +37,11 @@ func (p *ProductService) InsertProduct(
 		Msg("inserting product")
 	product, err := p.queries.InsertProduct(
 		c,
-		repository.InsertProductParams{ProductName: param.Name, Price: param.Price},
+		repository.InsertProductParams{
+			ProductName: param.Name,
+			Price:       param.Price,
+			Amount:      int32(param.Amount),
+		},
 	)
 	if err != nil {
 		logger.Error().
@@ -50,4 +55,39 @@ func (p *ProductService) InsertProduct(
 		Msg("inserted product")
 
 	return product, nil
+}
+
+func (p *ProductService) FindProducts(
+	c context.Context,
+	param request.FindProductRequest,
+) ([]repository.Product, error) {
+	c, span := otel.Tracer.Start(c, "ProductService FindProducts")
+	defer span.End()
+
+	logger := zerolog.Ctx(c).
+		With().
+		Str(log.KeyProcess, fmt.Sprintf("finding products by id=%s or name=%s", param.ID.String(), param.Name)).
+		Str(log.KeyTag, "ProductService FindProducts").
+		Logger()
+
+	logger.Info().Msgf("finding products by id=%s or name=%s", param.ID.String(), param.Name)
+	products, err := p.queries.FindProductByIdOrName(
+		c,
+		repository.FindProductByIdOrNameParams{ID: param.ID, Column2: param.Name},
+	)
+	if err != nil || len(products) == 0 {
+		logger.Error().
+			Err(err).
+			Msgf("products by id=%s or name=%s not found", param.ID.String(), param.Name)
+		return nil, fmt.Errorf(
+			"products by id=%s or name=%s not found",
+			param.ID.String(),
+			param.Name,
+		)
+	}
+	logger.Info().
+		Any("products", products).
+		Msgf("found products by id=%s or name=%s", param.ID.String(), param.Name)
+
+	return products, nil
 }
