@@ -1,0 +1,13 @@
+@base=http://localhost:8081/products
+
+# @name InsertProduct
+###
+POST {{base}} HTTP/1.1
+accept: application/json
+content-type: application/json
+
+{
+  "name": "product 1",
+  "price": "12345.100"
+}
+

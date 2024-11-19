@@ -12,6 +12,7 @@ COPY main.go  ./
 COPY ./internal/ ./internal/
 COPY ./cmd/ ./cmd/
 COPY ./user/ ./user/
+COPY ./product/ ./product/
 
 RUN go build main.go
 
