@@ -6,6 +6,7 @@ const (
 	AppShopService         = "shop-service"
 	AppProductService      = "product-service"
 	AppOrderService        = "order-service"
+	AppCartService         = "cart-service"
 	MainEcommerce          = "main ecommerce"
 	AudienceUser           = "audience-user"
 	QueryParamID           = "queryParamID"

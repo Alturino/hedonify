@@ -9,7 +9,7 @@ content-type: application/json
 {
   "name": "product 1",
   "price": "12345.100",
-  "amount": 100
+  "quantity": 100
 }
 
 # @name FindProducts

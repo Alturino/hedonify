@@ -13,6 +13,7 @@ COPY ./internal/ ./internal/
 COPY ./cmd/ ./cmd/
 COPY ./user/ ./user/
 COPY ./product/ ./product/
+COPY ./cart/ ./cart/
 
 RUN go build main.go
 

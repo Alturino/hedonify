@@ -1,0 +1,33 @@
+@base=http://localhost:8082/carts
+
+# @name InsertCart
+###
+POST {{base}}/ HTTP/1.1
+accept: application/json
+content-type: application/json
+
+{
+  "userId": "2a1d48f2-3f5f-46a5-b490-64254be96c7c",
+  "productId": "7964c178-3d66-4652-985a-3b3796fd0a14",
+  "quantity": 3,
+  "price": "123.25"
+}
+
+# @name FindCartById
+###
+GET {{base}}/"" HTTP/1.1
+accept: application/json
+content-type: application/json
+
+# @name FindCartByUserId
+###
+GET {{base}}?userId="" HTTP/1.1
+accept: application/json
+content-type: application/json
+
+
+# @name FindCartByProductId
+###
+GET {{base}}?productId="" HTTP/1.1
+accept: application/json
+content-type: application/json

@@ -55,6 +55,13 @@ func Start() {
 			},
 		},
 		{
+			Use:   "cart",
+			Short: "Run cart service",
+			Run: func(cmd *cobra.Command, args []string) {
+				runCartService(cmd.Context())
+			},
+		},
+		{
 			Use:   "user",
 			Short: "Run user service",
 			Run: func(cmd *cobra.Command, args []string) {
