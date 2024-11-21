@@ -12,9 +12,9 @@ import (
 )
 
 const findProductByIdOrName = `-- name: FindProductByIdOrName :many
-select id, product_name, price, amount, created_at, updated_at
+select id, name, price, quantity, created_at, updated_at
 from products
-where id = $1 or product_name ilike '%' || $2::text || '%'
+where id = $1 or name ilike '%' || $2::text || '%'
 `
 
 type FindProductByIdOrNameParams struct {
@@ -33,9 +33,9 @@ func (q *Queries) FindProductByIdOrName(ctx context.Context, arg FindProductById
 		var i Product
 		if err := rows.Scan(
 			&i.ID,
-			&i.ProductName,
+			&i.Name,
 			&i.Price,
-			&i.Amount,
+			&i.Quantity,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -53,7 +53,7 @@ func (q *Queries) FindProductByIdOrName(ctx context.Context, arg FindProductById
 }
 
 const getProducts = `-- name: GetProducts :many
-select id, product_name, price, amount, created_at, updated_at from products
+select id, name, price, quantity, created_at, updated_at from products
 `
 
 func (q *Queries) GetProducts(ctx context.Context) ([]Product, error) {
@@ -67,9 +67,9 @@ func (q *Queries) GetProducts(ctx context.Context) ([]Product, error) {
 		var i Product
 		if err := rows.Scan(
 			&i.ID,
-			&i.ProductName,
+			&i.Name,
 			&i.Price,
-			&i.Amount,
+			&i.Quantity,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -87,25 +87,25 @@ func (q *Queries) GetProducts(ctx context.Context) ([]Product, error) {
 }
 
 const insertProduct = `-- name: InsertProduct :one
-insert into products (product_name, price, amount) values (
+insert into products (name, price, quantity) values (
     $1, $2, $3
-) returning id, product_name, price, amount, created_at, updated_at
+) returning id, name, price, quantity, created_at, updated_at
 `
 
 type InsertProductParams struct {
-	ProductName string `json:"product_name"`
-	Price       string `json:"price"`
-	Amount      int32  `json:"amount"`
+	Name     string `json:"name"`
+	Price    string `json:"price"`
+	Quantity int32  `json:"quantity"`
 }
 
 func (q *Queries) InsertProduct(ctx context.Context, arg InsertProductParams) (Product, error) {
-	row := q.queryRow(ctx, q.insertProductStmt, insertProduct, arg.ProductName, arg.Price, arg.Amount)
+	row := q.queryRow(ctx, q.insertProductStmt, insertProduct, arg.Name, arg.Price, arg.Quantity)
 	var i Product
 	err := row.Scan(
 		&i.ID,
-		&i.ProductName,
+		&i.Name,
 		&i.Price,
-		&i.Amount,
+		&i.Quantity,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

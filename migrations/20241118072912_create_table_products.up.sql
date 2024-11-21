@@ -1,8 +1,8 @@
 create table if not exists products (
     id uuid primary key not null default (gen_random_uuid()),
-    product_name varchar(128) unique not null default (''),
-    price numeric not null default (0),
-    amount serial not null default (0),
+    name varchar(128) unique not null default '',
+    price numeric not null,
+    quantity serial not null,
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp
 );

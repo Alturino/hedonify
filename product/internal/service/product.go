@@ -38,9 +38,9 @@ func (p *ProductService) InsertProduct(
 	product, err := p.queries.InsertProduct(
 		c,
 		repository.InsertProductParams{
-			ProductName: param.Name,
-			Price:       param.Price,
-			Amount:      int32(param.Amount),
+			Name:     param.Name,
+			Price:    param.Price,
+			Quantity: int32(param.Quantity),
 		},
 	)
 	if err != nil {

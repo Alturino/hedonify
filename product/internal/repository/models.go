@@ -11,10 +11,10 @@ import (
 )
 
 type Product struct {
-	ID          uuid.UUID `json:"id"`
-	ProductName string    `json:"product_name"`
-	Price       string    `json:"price"`
-	Amount      int32     `json:"amount"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	Price     string    `json:"price"`
+	Quantity  int32     `json:"quantity"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
