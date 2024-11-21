@@ -1,0 +1,69 @@
+@startuml
+ entity "products" as p {
+  id: number
+  name: text
+  price: text
+  quantity int
+  created_at timestamp
+  updated_at timestamp
+}
+
+table carts {
+  id text pk
+  user_id text
+  total_price int
+  created_at timestamp
+  updated_at timestamp
+}
+
+table cart_items {
+  id text pk
+  cart_id text
+  product_id text
+  quantity int
+  price numeric
+  created_at timestamp
+  updated_at timestamp
+}
+
+table users {
+  id text pk
+  username text
+  email text
+  password text
+  created_at timestamp
+  updated_at timestamp
+}
+
+table orders {
+  id text pk
+  user_id text
+  total_price numeric
+  created_at timestamp
+  updated_at timestamp
+}
+
+table order_items {
+  id text pk
+  order_id text
+  product_id text
+  quantity int
+  price numeric
+  created_at timestamp
+  updated_at timestamp
+}
+
+table merchants {
+  id text pk
+  name text
+  user_id text
+}
+
+ref: carts.id < cart_items.cart_id
+ref: orders.id - carts.id
+ref: orders.id < order_items.order_id
+ref: products.id < cart_items.product_id
+ref: products.id < order_items.product_id
+ref: users.id - merchants.user_id
+ref: users.id < carts.user_id
+ref: users.id < orders.user_id
