@@ -3,6 +3,8 @@ package log
 const (
 	KeyAppName            = "app"
 	KeyCartID             = "cartId"
+	KeyCart               = "cart"
+	KeyCartItems          = "cartItems"
 	KeyConfig             = "config"
 	KeyEmail              = "email"
 	KeyProcess            = "process"
