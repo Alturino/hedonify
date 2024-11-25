@@ -9,19 +9,38 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteCartItemFromCartsById = `-- name: DeleteCartItemFromCartsById :one
+delete from cart_items where id = $1 returning id, cart_id, product_id, quantity, price, created_at, updated_at
+`
+
+func (q *Queries) DeleteCartItemFromCartsById(ctx context.Context, id uuid.UUID) (CartItem, error) {
+	row := q.db.QueryRow(ctx, deleteCartItemFromCartsById, id)
+	var i CartItem
+	err := row.Scan(
+		&i.ID,
+		&i.CartID,
+		&i.ProductID,
+		&i.Quantity,
+		&i.Price,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const findCartById = `-- name: FindCartById :one
-select id, user_id, total_price, created_at, updated_at from carts where id = $1
+select id, user_id, created_at, updated_at from carts where id = $1
 `
 
 func (q *Queries) FindCartById(ctx context.Context, id uuid.UUID) (Cart, error) {
-	row := q.queryRow(ctx, q.findCartByIdStmt, findCartById, id)
+	row := q.db.QueryRow(ctx, findCartById, id)
 	var i Cart
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.TotalPrice,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -29,11 +48,11 @@ func (q *Queries) FindCartById(ctx context.Context, id uuid.UUID) (Cart, error) 
 }
 
 const findCartByUserId = `-- name: FindCartByUserId :many
-select id, user_id, total_price, created_at, updated_at from carts where user_id = $1
+select id, user_id, created_at, updated_at from carts where user_id = $1
 `
 
 func (q *Queries) FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]Cart, error) {
-	rows, err := q.query(ctx, q.findCartByUserIdStmt, findCartByUserId, userID)
+	rows, err := q.db.Query(ctx, findCartByUserId, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -44,16 +63,12 @@ func (q *Queries) FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]Car
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
-			&i.TotalPrice,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -62,23 +77,24 @@ func (q *Queries) FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]Car
 }
 
 const insertCart = `-- name: InsertCart :one
-insert into carts (user_id, total_price) values ($1, $2) returning id, user_id, total_price, created_at, updated_at
+insert into carts (user_id) values ($1) returning id, user_id, created_at, updated_at
 `
 
-type InsertCartParams struct {
-	UserID     uuid.UUID `json:"user_id"`
-	TotalPrice string    `json:"total_price"`
-}
-
-func (q *Queries) InsertCart(ctx context.Context, arg InsertCartParams) (Cart, error) {
-	row := q.queryRow(ctx, q.insertCartStmt, insertCart, arg.UserID, arg.TotalPrice)
+func (q *Queries) InsertCart(ctx context.Context, userID uuid.UUID) (Cart, error) {
+	row := q.db.QueryRow(ctx, insertCart, userID)
 	var i Cart
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.TotalPrice,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+type InsertCartItemParams struct {
+	CartID    uuid.UUID      `json:"cart_id"`
+	ProductID uuid.UUID      `json:"product_id"`
+	Quantity  int32          `json:"quantity"`
+	Price     pgtype.Numeric `json:"price"`
 }

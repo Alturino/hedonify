@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const findProductByIdOrName = `-- name: FindProductByIdOrName :many
@@ -23,7 +24,7 @@ type FindProductByIdOrNameParams struct {
 }
 
 func (q *Queries) FindProductByIdOrName(ctx context.Context, arg FindProductByIdOrNameParams) ([]Product, error) {
-	rows, err := q.query(ctx, q.findProductByIdOrNameStmt, findProductByIdOrName, arg.ID, arg.Column2)
+	rows, err := q.db.Query(ctx, findProductByIdOrName, arg.ID, arg.Column2)
 	if err != nil {
 		return nil, err
 	}
@@ -42,9 +43,6 @@ func (q *Queries) FindProductByIdOrName(ctx context.Context, arg FindProductById
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -57,7 +55,7 @@ select id, name, price, quantity, created_at, updated_at from products
 `
 
 func (q *Queries) GetProducts(ctx context.Context) ([]Product, error) {
-	rows, err := q.query(ctx, q.getProductsStmt, getProducts)
+	rows, err := q.db.Query(ctx, getProducts)
 	if err != nil {
 		return nil, err
 	}
@@ -76,9 +74,6 @@ func (q *Queries) GetProducts(ctx context.Context) ([]Product, error) {
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -93,13 +88,13 @@ insert into products (name, price, quantity) values (
 `
 
 type InsertProductParams struct {
-	Name     string `json:"name"`
-	Price    string `json:"price"`
-	Quantity int32  `json:"quantity"`
+	Name     string         `json:"name"`
+	Price    pgtype.Numeric `json:"price"`
+	Quantity int32          `json:"quantity"`
 }
 
 func (q *Queries) InsertProduct(ctx context.Context, arg InsertProductParams) (Product, error) {
-	row := q.queryRow(ctx, q.insertProductStmt, insertProduct, arg.Name, arg.Price, arg.Quantity)
+	row := q.db.QueryRow(ctx, insertProduct, arg.Name, arg.Price, arg.Quantity)
 	var i Product
 	err := row.Scan(
 		&i.ID,

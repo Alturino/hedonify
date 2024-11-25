@@ -1,17 +1,20 @@
 package database
 
 import (
-	"database/sql"
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/lib/pq"
 	"github.com/rs/zerolog"
-	"github.com/uptrace/opentelemetry-go-extra/otelsql"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
 	"github.com/Alturino/ecommerce/internal/config"
@@ -19,17 +22,13 @@ import (
 )
 
 func NewDatabaseClient(
+	c context.Context,
 	dbConfig config.Database,
-	logger *zerolog.Logger,
-) *sql.DB {
-	logger.Info().
-		Str(log.KeyProcess, "NewPostgreSQLClient").
-		Msgf("initiate connection to database")
-	defer func() {
-		logger.Info().
-			Str(log.KeyProcess, "NewPostgreSQLClient").
-			Msgf("successed connecting to database")
-	}()
+) *pgxpool.Pool {
+	logger := zerolog.Ctx(c).With().
+		Str(log.KeyTag, "main NewDatabaseClient").
+		Logger()
+
 	postgresUrl := fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
 		dbConfig.Username,
@@ -39,26 +38,59 @@ func NewDatabaseClient(
 		dbConfig.DbName,
 	)
 
-	db, err := otelsql.Open(
-		"postgres",
-		postgresUrl,
-		otelsql.WithAttributes(semconv.DBSystemPostgreSQL),
-		otelsql.WithDBName(dbConfig.DbName),
-	)
+	logger.Info().
+		Str(log.KeyProcess, "initializing pgx config").
+		Msgf("initializing connection to database")
+	pgxConfig, err := pgxpool.ParseConfig(postgresUrl)
 	if err != nil {
 		logger.Fatal().
 			Err(err).
 			Str(log.KeyProcess, "NewPostgreSQLClient").
-			Msgf("failed opening connection to postgres with error=%s", err.Error())
+			Msgf("failed creating pgx config with error=%s", err.Error())
 	}
+	logger.Info().
+		Str(log.KeyProcess, "initializing pgx config").
+		Msgf("initialized connection to database")
 
-	err = db.Ping()
+	logger.Info().
+		Str(log.KeyProcess, "attach tracer to pgx").
+		Msgf("attaching tracer to pgx")
+	pgxConfig.ConnConfig.Tracer = otelpgx.NewTracer(
+		otelpgx.WithAttributes(semconv.DBSystemPostgreSQL),
+	)
+	logger.Info().
+		Str(log.KeyProcess, "attach tracer to pgx").
+		Msgf("attached tracer to pgx")
+
+	logger.Info().
+		Str(log.KeyProcess, "creating connection pool").
+		Msg("creating connection pool to postgres")
+	pool, err := pgxpool.NewWithConfig(c, pgxConfig)
 	if err != nil {
 		logger.Fatal().
 			Err(err).
-			Str(log.KeyProcess, "NewPostgreSQLClient").
-			Msgf("failed pinging connection to postgres with error=%s", err.Error())
+			Str(log.KeyProcess, "creating connection pool").
+			Msgf("failed creating connection pool to postgres with error=%s", err.Error())
 	}
+	logger.Info().
+		Str(log.KeyProcess, "creating connection pool").
+		Msg("created connection pool to postgres")
+
+	logger.Info().
+		Str(log.KeyProcess, "ping db connection").
+		Msg("pinging db connection")
+	err = pool.Ping(c)
+	if err != nil {
+		logger.Fatal().
+			Err(err).
+			Str(log.KeyProcess, "ping db connection").
+			Msgf("failed ping connction to db with error=%s", err.Error())
+	}
+	logger.Info().
+		Str(log.KeyProcess, "ping db connection").
+		Msg("successed ping db connection")
+
+	db := stdlib.OpenDBFromPool(pool)
 
 	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
@@ -68,6 +100,9 @@ func NewDatabaseClient(
 			Msgf("failed creating postgres driver to do migration with error=%s", err.Error())
 	}
 
+	logger.Info().
+		Str(log.KeyProcess, "NewPostgreSQLClient").
+		Msgf("failed migration postgres with error=%s", err.Error())
 	migration, err := migrate.NewWithDatabaseInstance(dbConfig.MigrationPath, postgresUrl, driver)
 	if err != nil {
 		logger.Fatal().
@@ -97,5 +132,9 @@ func NewDatabaseClient(
 	db.SetMaxOpenConns(int(dbConfig.MaxConnections))
 	db.SetMaxIdleConns(int(dbConfig.MinConnections))
 
-	return db
+	logger.Info().
+		Str(log.KeyProcess, "NewPostgreSQLClient").
+		Msgf("successed connecting to database")
+
+	return pool
 }

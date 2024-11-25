@@ -6,4 +6,4 @@ import (
 	"github.com/Alturino/ecommerce/internal/common"
 )
 
-var Tracer = otel.Tracer(common.AppCartService)
+var Tracer = otel.Tracer(common.AppOrderService)

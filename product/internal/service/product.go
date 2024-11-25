@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
 	"github.com/Alturino/ecommerce/internal/log"
@@ -35,11 +36,19 @@ func (p *ProductService) InsertProduct(
 	logger.Info().
 		Str(log.KeyProcess, "inserting product").
 		Msg("inserting product")
+	var price pgtype.Numeric
+	if err := price.Scan(param.Price); err != nil {
+		logger.Error().
+			Err(err).
+			Str(log.KeyProcess, "inserting product").
+			Msgf("failed to insert product with error=%s", err.Error())
+		return repository.Product{}, err
+	}
 	product, err := p.queries.InsertProduct(
 		c,
 		repository.InsertProductParams{
 			Name:     param.Name,
-			Price:    param.Price,
+			Price:    price,
 			Quantity: int32(param.Quantity),
 		},
 	)

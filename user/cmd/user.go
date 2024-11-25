@@ -74,7 +74,7 @@ func RunUserService(c context.Context) {
 	logger.Info().
 		Str(log.KeyProcess, "init database").
 		Msg("initializing database")
-	db := database.NewDatabaseClient(cfg.Database, &logger)
+	db := database.NewDatabaseClient(c, cfg.Database)
 	logger.Info().
 		Str(log.KeyProcess, "init database").
 		Msg("initialized database")

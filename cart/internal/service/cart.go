@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"math/big"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
 
 	"github.com/Alturino/ecommerce/cart/internal/common/otel"
 	"github.com/Alturino/ecommerce/cart/internal/repository"
@@ -16,11 +19,12 @@ import (
 )
 
 type CartService struct {
+	pool    *pgxpool.Pool
 	queries *repository.Queries
 }
 
-func NewCartService(queries *repository.Queries) CartService {
-	return CartService{queries: queries}
+func NewCartService(pool *pgxpool.Pool, queries *repository.Queries) CartService {
+	return CartService{pool: pool, queries: queries}
 }
 
 func (s *CartService) InsertCart(
@@ -33,45 +37,109 @@ func (s *CartService) InsertCart(
 	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KeyTag, "CartService InsertCart").
+		Str(log.KeyProcess, "validating request body").
 		Logger()
+	c = logger.WithContext(c)
 
-	logger.Info().
-		Str(log.KeyProcess, "validating price is actually a number").
-		Msg("validating price is actually a number")
-	rat, ok := new(big.Rat).SetString(param.Price)
-	if !ok {
-		err := errors.New("price is not actually a number")
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "validating price is actually a number").
-			Msg(err.Error())
+	logger.Info().Msg("initializing validator")
+	validate := validator.New(validator.WithRequiredStructEnabled())
+	logger.Info().Msg("initialized validator")
+
+	logger.Info().Msg("validating request body")
+	cartBody := request.InsertCartRequest{}
+	if err := validate.StructCtx(c, cartBody); err != nil {
+		logger.Error().Err(err).Msgf("failed validating request body with error=%s", err.Error())
 		return repository.Cart{}, err
 	}
-	logger.Info().
-		Str(log.KeyProcess, "validating price is actually a number").
-		Msg("validated price is actually a number")
+	logger.Info().Msg("validated request body")
 
-	logger.Info().
-		Str(log.KeyProcess, "inserting cart request").
-		Msg("inserting cart")
-	cart, err := s.queries.InsertCart(
-		c,
-		repository.InsertCartParams{
-			UserID:     uuid.MustParse(param.UserID),
-			TotalPrice: rat.String(),
-		},
-	)
-	r := recover()
-	if err != nil || r != nil {
+	logger = logger.With().
+		Str(log.KeyProcess, "initalizing transaction").
+		Logger()
+	c = logger.WithContext(c)
+
+	logger.Info().Msg("initalizing transaction")
+	tx, err := s.pool.BeginTx(c, pgx.TxOptions{})
+	if err != nil {
 		logger.Error().
 			Err(err).
-			Str(log.KeyProcess, "inserting cart request").
-			Msgf("failed inserting cart with error=%s", err.Error())
+			Msgf("failed initalizing transaction with error=%s", err.Error())
 		return repository.Cart{}, err
 	}
-	logger.Info().
+	logger.Info().Msg("initialized transaction")
+	defer func() {
+		logger.Info().
+			Str(log.KeyProcess, "rollback transaction").
+			Msg("rolling back transaction")
+		err = tx.Rollback(c)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str(log.KeyProcess, "rollback transaction").
+				Msgf("failed rolling back transaction with error=%s", err.Error())
+			return
+		}
+		logger.Info().
+			Str(log.KeyProcess, "rollback transaction").
+			Msg("rolled back transaction")
+	}()
+
+	logger = logger.With().
 		Str(log.KeyProcess, "inserting cart request").
-		Msg("inserted cart")
+		Logger()
+	c = logger.WithContext(c)
+
+	logger.Info().Msg("inserting cart request")
+	cart, err := s.queries.InsertCart(c, param.UserID)
+	if err != nil {
+		logger.Error().Err(err).Msgf("failed inserting cart request with error=%s", err.Error())
+		return repository.Cart{}, err
+	}
+	logger = logger.With().
+		Any(log.KeyCart, cart).
+		Logger()
+	c = logger.WithContext(c)
+	logger.Info().Msg("inserted cart request")
+
+	logger = logger.With().
+		Str(log.KeyProcess, "inserting cart item request").
+		Logger()
+	c = logger.WithContext(c)
+
+	logger.Info().Msg("inserting cart item")
+	args := []repository.InsertCartItemParams{}
+	for i, item := range param.CartItems {
+		price, err := decimal.NewFromString(item.Price)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Msgf("failed inserting cart item i=%d with error=%s", i, err.Error())
+			return repository.Cart{}, err
+		}
+		args = append(
+			args,
+			repository.InsertCartItemParams{
+				CartID:    cart.ID,
+				ProductID: item.ProductId,
+				Quantity:  int32(item.Quantity),
+				Price: pgtype.Numeric{
+					Int:              price.BigInt(),
+					Exp:              price.Exponent(),
+					NaN:              false,
+					InfinityModifier: pgtype.Finite,
+					Valid:            true,
+				},
+			},
+		)
+	}
+	insertedCount, err := s.queries.InsertCartItem(c, args)
+	if err != nil || insertedCount <= 0 {
+		err = fmt.Errorf("failed inserting cart item with error=%s", err.Error())
+		logger.Error().Err(err).Msg(err.Error())
+		return repository.Cart{}, err
+	}
+	logger.Info().Msg("inserted cart request")
+	logger.Info().Msgf("inserted cart item with count=%d", insertedCount)
 
 	return cart, nil
 }

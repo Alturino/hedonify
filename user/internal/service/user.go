@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"golang.org/x/crypto/bcrypt"
 
@@ -139,8 +140,8 @@ func (u *UserService) Register(
 		Username:  param.Username,
 		Email:     param.Email,
 		Password:  string(hashed),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: pgtype.Timestamp{Time: time.Now()},
+		UpdatedAt: pgtype.Timestamp{Time: time.Now()},
 	})
 	if err != nil {
 		logger.Error().

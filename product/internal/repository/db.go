@@ -6,103 +6,27 @@ package repository
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type DBTX interface {
-	ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
-	PrepareContext(context.Context, string) (*sql.Stmt, error)
-	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
-	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
+	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
+	Query(context.Context, string, ...interface{}) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...interface{}) pgx.Row
 }
 
 func New(db DBTX) *Queries {
 	return &Queries{db: db}
 }
 
-func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
-	q := Queries{db: db}
-	var err error
-	if q.findProductByIdOrNameStmt, err = db.PrepareContext(ctx, findProductByIdOrName); err != nil {
-		return nil, fmt.Errorf("error preparing query FindProductByIdOrName: %w", err)
-	}
-	if q.getProductsStmt, err = db.PrepareContext(ctx, getProducts); err != nil {
-		return nil, fmt.Errorf("error preparing query GetProducts: %w", err)
-	}
-	if q.insertProductStmt, err = db.PrepareContext(ctx, insertProduct); err != nil {
-		return nil, fmt.Errorf("error preparing query InsertProduct: %w", err)
-	}
-	return &q, nil
-}
-
-func (q *Queries) Close() error {
-	var err error
-	if q.findProductByIdOrNameStmt != nil {
-		if cerr := q.findProductByIdOrNameStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing findProductByIdOrNameStmt: %w", cerr)
-		}
-	}
-	if q.getProductsStmt != nil {
-		if cerr := q.getProductsStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing getProductsStmt: %w", cerr)
-		}
-	}
-	if q.insertProductStmt != nil {
-		if cerr := q.insertProductStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing insertProductStmt: %w", cerr)
-		}
-	}
-	return err
-}
-
-func (q *Queries) exec(ctx context.Context, stmt *sql.Stmt, query string, args ...interface{}) (sql.Result, error) {
-	switch {
-	case stmt != nil && q.tx != nil:
-		return q.tx.StmtContext(ctx, stmt).ExecContext(ctx, args...)
-	case stmt != nil:
-		return stmt.ExecContext(ctx, args...)
-	default:
-		return q.db.ExecContext(ctx, query, args...)
-	}
-}
-
-func (q *Queries) query(ctx context.Context, stmt *sql.Stmt, query string, args ...interface{}) (*sql.Rows, error) {
-	switch {
-	case stmt != nil && q.tx != nil:
-		return q.tx.StmtContext(ctx, stmt).QueryContext(ctx, args...)
-	case stmt != nil:
-		return stmt.QueryContext(ctx, args...)
-	default:
-		return q.db.QueryContext(ctx, query, args...)
-	}
-}
-
-func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, args ...interface{}) *sql.Row {
-	switch {
-	case stmt != nil && q.tx != nil:
-		return q.tx.StmtContext(ctx, stmt).QueryRowContext(ctx, args...)
-	case stmt != nil:
-		return stmt.QueryRowContext(ctx, args...)
-	default:
-		return q.db.QueryRowContext(ctx, query, args...)
-	}
-}
-
 type Queries struct {
-	db                        DBTX
-	tx                        *sql.Tx
-	findProductByIdOrNameStmt *sql.Stmt
-	getProductsStmt           *sql.Stmt
-	insertProductStmt         *sql.Stmt
+	db DBTX
 }
 
-func (q *Queries) WithTx(tx *sql.Tx) *Queries {
+func (q *Queries) WithTx(tx pgx.Tx) *Queries {
 	return &Queries{
-		db:                        tx,
-		tx:                        tx,
-		findProductByIdOrNameStmt: q.findProductByIdOrNameStmt,
-		getProductsStmt:           q.getProductsStmt,
-		insertProductStmt:         q.insertProductStmt,
+		db: tx,
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/zerolog"
 
 	"github.com/Alturino/ecommerce/cart/internal/controller"
 	"github.com/Alturino/ecommerce/cart/internal/repository"
@@ -22,7 +23,7 @@ import (
 )
 
 func RunCartService(c context.Context) {
-	logger := log.InitLogger(fmt.Sprintf("/var/log/%s.log", common.AppCartService)).
+	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KeyAppName, common.AppCartService).
 		Str(log.KeyTag, "main RunCartService").
@@ -74,7 +75,7 @@ func RunCartService(c context.Context) {
 	logger.Info().
 		Str(log.KeyProcess, "init database").
 		Msg("initializing database")
-	db := database.NewDatabaseClient(cfg.Database, &logger)
+	db := database.NewDatabaseClient(c, cfg.Database)
 	logger.Info().
 		Str(log.KeyProcess, "init database").
 		Msg("initialized database")
@@ -83,7 +84,7 @@ func RunCartService(c context.Context) {
 		Str(log.KeyProcess, "initializing cartService").
 		Msg("initializing cartService")
 	queries := repository.New(db)
-	cartService := service.NewCartService(queries)
+	cartService := service.NewCartService(db, queries)
 	logger.Info().
 		Str(log.KeyProcess, "initializing cartService").
 		Msg("initialized cartService")

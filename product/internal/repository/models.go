@@ -5,16 +5,15 @@
 package repository
 
 import (
-	"time"
-
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Product struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	Price     string    `json:"price"`
-	Quantity  int32     `json:"quantity"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        uuid.UUID        `json:"id"`
+	Name      string           `json:"name"`
+	Price     pgtype.Numeric   `json:"price"`
+	Quantity  int32            `json:"quantity"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	UpdatedAt pgtype.Timestamp `json:"updated_at"`
 }
