@@ -1,0 +1,18 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "../queries/orders.sql"
+    schema: "../migrations/*_orders.*.sql"
+    gen:
+      go:
+        package: "repository"
+        sql_package: "pgx/v5"
+        out: "./internal/repository"
+        emit_json_tags: true
+        emit_prepared_queries: true
+        emit_interface: true
+        overrides:
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"

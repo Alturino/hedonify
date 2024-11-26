@@ -12,9 +12,13 @@ import (
 
 	"github.com/Alturino/ecommerce/internal/common"
 	"github.com/Alturino/ecommerce/internal/config"
+	database "github.com/Alturino/ecommerce/internal/infra"
 	"github.com/Alturino/ecommerce/internal/log"
 	"github.com/Alturino/ecommerce/internal/middleware"
 	"github.com/Alturino/ecommerce/internal/otel"
+	"github.com/Alturino/ecommerce/order/internal/controller"
+	"github.com/Alturino/ecommerce/order/internal/repository"
+	"github.com/Alturino/ecommerce/order/internal/service"
 )
 
 func RunOrderService(c context.Context) {
@@ -58,8 +62,7 @@ func RunOrderService(c context.Context) {
 		Msg("initalizing otel sdk")
 	otelShutdowns, err := otel.InitOtelSdk(c, common.AppCartService)
 	if err != nil {
-		logger.Error().
-			Err(err).
+		logger.Error().Err(err).Stack().
 			Str(log.KeyProcess, "InitOtelSdk").
 			Msgf("failed initalizing otel sdk with error=%s", err.Error())
 	}
@@ -70,7 +73,7 @@ func RunOrderService(c context.Context) {
 	logger.Info().
 		Str(log.KeyProcess, "init database").
 		Msg("initializing database")
-	db := database.NewDatabaseClient(cfg.Database, &logger)
+	db := database.NewDatabaseClient(c, cfg.Database)
 	logger.Info().
 		Str(log.KeyProcess, "init database").
 		Msg("initialized database")
@@ -79,7 +82,7 @@ func RunOrderService(c context.Context) {
 		Str(log.KeyProcess, "initializing cartService").
 		Msg("initializing cartService")
 	queries := repository.New(db)
-	cartService := service.NewCartService(queries)
+	orderService := service.NewOrderService(db, queries)
 	logger.Info().
 		Str(log.KeyProcess, "initializing cartService").
 		Msg("initialized cartService")
@@ -87,7 +90,7 @@ func RunOrderService(c context.Context) {
 	logger.Info().
 		Str(log.KeyProcess, "initializing userController").
 		Msg("initializing userController")
-	controller.AttachCartController(mux, &cartService)
+	controller.AttachOrderController(mux, &orderService)
 	logger.Info().
 		Str(log.KeyProcess, "initialized userController").
 		Msg("initialized userController")
@@ -111,13 +114,11 @@ func RunOrderService(c context.Context) {
 			Str(log.KeyProcess, "start server").
 			Msgf("start listening request at %s", server.Addr)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error().
-				Err(err).
+			logger.Error().Err(err).Stack().
 				Str(log.KeyProcess, "Shutdown server").
 				Msgf("error=%s occured while server is running", err.Error())
 			if err := otel.ShutdownOtel(c, otelShutdowns); err != nil {
-				logger.Error().
-					Err(err).
+				logger.Error().Err(err).Stack().
 					Str(log.KeyProcess, "Shutdown server").
 					Msgf("failed shutting down otel with error=%s", err.Error())
 			}
@@ -137,8 +138,7 @@ func RunOrderService(c context.Context) {
 		Msg("shutting down otel")
 	err = otel.ShutdownOtel(c, otelShutdowns)
 	if err != nil {
-		logger.Error().
-			Err(err).
+		logger.Error().Err(err).Stack().
 			Str(log.KeyProcess, "shutdown server").
 			Msgf("failed shutting down otel with error=%s", err.Error())
 	}
@@ -151,8 +151,7 @@ func RunOrderService(c context.Context) {
 		Msg("shutting down http server")
 	err = server.Shutdown(c)
 	if err != nil {
-		logger.Error().
-			Err(err).
+		logger.Error().Err(err).Stack().
 			Str(log.KeyProcess, "shutdown server").
 			Msgf("failed shutting down http server with error=%s", err.Error())
 	}

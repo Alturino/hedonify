@@ -2,6 +2,9 @@ package log
 
 const (
 	KeyAppName            = "app"
+	KeyOrder              = "order"
+	KeyOrderItems         = "orderItems"
+	KeyOrders             = "orders"
 	KeyCartID             = "cartId"
 	KeyCart               = "cart"
 	KeyCartItems          = "cartItems"
@@ -21,4 +24,5 @@ const (
 	KeyTag                = "tag"
 	KeyToken              = "token"
 	KeyUserID             = "userId"
+	KeyOrderID            = "orderId"
 )
