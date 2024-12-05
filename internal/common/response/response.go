@@ -24,15 +24,15 @@ func WriteJsonResponse(
 
 	w.Header().Add(HeaderContentType, HeaderValueJson)
 
-	headerWg := sync.WaitGroup{}
+	var wg sync.WaitGroup
 	for k, v := range header {
-		headerWg.Add(1)
+		wg.Add(1)
 		go func() {
 			w.Header().Add(k, v)
-			headerWg.Done()
+			wg.Done()
 		}()
 	}
-	headerWg.Wait()
+	wg.Wait()
 
 	if v, ok := body["statusCode"]; ok {
 		w.WriteHeader(v.(int))
