@@ -13,11 +13,16 @@ import (
 )
 
 const deleteCartItemFromCartsById = `-- name: DeleteCartItemFromCartsById :one
-delete from cart_items where id = $1 returning id, cart_id, product_id, quantity, price, created_at, updated_at
+delete from cart_items where id = $1 and cart_id = $2 returning id, cart_id, product_id, quantity, price, created_at, updated_at
 `
 
-func (q *Queries) DeleteCartItemFromCartsById(ctx context.Context, id uuid.UUID) (CartItem, error) {
-	row := q.db.QueryRow(ctx, deleteCartItemFromCartsById, id)
+type DeleteCartItemFromCartsByIdParams struct {
+	ID     uuid.UUID `json:"id"`
+	CartID uuid.UUID `json:"cart_id"`
+}
+
+func (q *Queries) DeleteCartItemFromCartsById(ctx context.Context, arg DeleteCartItemFromCartsByIdParams) (CartItem, error) {
+	row := q.db.QueryRow(ctx, deleteCartItemFromCartsById, arg.ID, arg.CartID)
 	var i CartItem
 	err := row.Scan(
 		&i.ID,
@@ -74,6 +79,25 @@ func (q *Queries) FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]Car
 		return nil, err
 	}
 	return items, nil
+}
+
+const findCartItemById = `-- name: FindCartItemById :one
+select id, cart_id, product_id, quantity, price, created_at, updated_at from cart_items where id = $1
+`
+
+func (q *Queries) FindCartItemById(ctx context.Context, id uuid.UUID) (CartItem, error) {
+	row := q.db.QueryRow(ctx, findCartItemById, id)
+	var i CartItem
+	err := row.Scan(
+		&i.ID,
+		&i.CartID,
+		&i.ProductID,
+		&i.Quantity,
+		&i.Price,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const insertCart = `-- name: InsertCart :one

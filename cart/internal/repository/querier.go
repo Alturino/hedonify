@@ -11,9 +11,10 @@ import (
 )
 
 type Querier interface {
-	DeleteCartItemFromCartsById(ctx context.Context, id uuid.UUID) (CartItem, error)
+	DeleteCartItemFromCartsById(ctx context.Context, arg DeleteCartItemFromCartsByIdParams) (CartItem, error)
 	FindCartById(ctx context.Context, id uuid.UUID) (Cart, error)
 	FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]Cart, error)
+	FindCartItemById(ctx context.Context, id uuid.UUID) (CartItem, error)
 	InsertCart(ctx context.Context, userID uuid.UUID) (Cart, error)
 	InsertCartItem(ctx context.Context, arg []InsertCartItemParams) (int64, error)
 }

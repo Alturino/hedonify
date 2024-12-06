@@ -6,6 +6,7 @@ const (
 	KeyOrderItems         = "orderItems"
 	KeyOrders             = "orders"
 	KeyCartID             = "cartId"
+	KeyCartItemId         = "cartItemId"
 	KeyCart               = "cart"
 	KeyCartItems          = "cartItems"
 	KeyConfig             = "config"

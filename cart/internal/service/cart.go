@@ -29,7 +29,7 @@ func NewCartService(pool *pgxpool.Pool, queries *repository.Queries) CartService
 
 func (s *CartService) InsertCart(
 	c context.Context,
-	param request.InsertCartRequest,
+	param request.InsertCart,
 ) (repository.Cart, error) {
 	c, span := otel.Tracer.Start(c, "CartService InsertCart")
 	defer span.End()
@@ -46,7 +46,7 @@ func (s *CartService) InsertCart(
 	logger.Info().Msg("initialized validator")
 
 	logger.Info().Msg("validating request body")
-	cartBody := request.InsertCartRequest{}
+	cartBody := request.InsertCart{}
 	if err := validate.StructCtx(c, cartBody); err != nil {
 		logger.Error().Err(err).Msgf("failed validating request body with error=%s", err.Error())
 		return repository.Cart{}, err
@@ -204,4 +204,59 @@ func (s *CartService) FindCartByUserId(
 		Msgf("failed finding cart by userId=%s with error=%s", userId, err.Error())
 
 	return cart, nil
+}
+
+func (s *CartService) RemoveCartItem(c context.Context, param request.RemoveCartItem) error {
+	c, span := otel.Tracer.Start(c, "CartService RemoveCartItem")
+	defer span.End()
+
+	logger := zerolog.Ctx(c).
+		With().
+		Str(log.KeyTag, "CartService RemoveCartItem").
+		Str(log.KeyProcess, "finding cartId").
+		Logger()
+
+	logger.Info().Msg("finding cartId")
+	_, err := s.queries.FindCartById(c, param.CartId)
+	if err != nil {
+		err = fmt.Errorf("failed finding cartId=%s with error=%w", param.ID.String(), err)
+		logger.Error().Err(err).Msg(err.Error())
+		return err
+	}
+	logger.Info().Msg("found cartId")
+
+	logger = logger.With().Str(log.KeyProcess, "finding cartItemId").Logger()
+	logger.Info().Msg("finding cartItemId")
+	_, err = s.queries.FindCartItemById(c, param.ID)
+	if err != nil {
+		err = fmt.Errorf(
+			"failed finding cartItemId=%s in cartId=%s with error=%w",
+			param.ID.String(),
+			param.CartId.String(),
+			err,
+		)
+		logger.Error().Err(err).Msg(err.Error())
+		return err
+	}
+	logger.Info().Msg("found cartItemId")
+
+	logger = logger.With().Str(log.KeyProcess, "deleting cartItem").Logger()
+	logger.Info().Msg("deleting cartItem")
+	_, err = s.queries.DeleteCartItemFromCartsById(
+		c,
+		repository.DeleteCartItemFromCartsByIdParams{ID: param.ID, CartID: param.CartId},
+	)
+	if err != nil {
+		err = fmt.Errorf(
+			"failed deleting cartItemId=%s in cartId=%s with error=%w",
+			param.ID.String(),
+			param.CartId.String(),
+			err,
+		)
+		logger.Error().Err(err).Msg(err.Error())
+		return err
+	}
+	logger.Info().Msg("deleted cartItem")
+
+	return nil
 }
