@@ -62,7 +62,7 @@ func RunOrderService(c context.Context) {
 		Msg("initalizing otel sdk")
 	otelShutdowns, err := otel.InitOtelSdk(c, common.AppCartService)
 	if err != nil {
-		logger.Error().Err(err).Stack().
+		logger.Error().Err(err).
 			Str(log.KeyProcess, "InitOtelSdk").
 			Msgf("failed initalizing otel sdk with error=%s", err.Error())
 	}
@@ -114,11 +114,11 @@ func RunOrderService(c context.Context) {
 			Str(log.KeyProcess, "start server").
 			Msgf("start listening request at %s", server.Addr)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error().Err(err).Stack().
+			logger.Error().Err(err).
 				Str(log.KeyProcess, "Shutdown server").
 				Msgf("error=%s occured while server is running", err.Error())
 			if err := otel.ShutdownOtel(c, otelShutdowns); err != nil {
-				logger.Error().Err(err).Stack().
+				logger.Error().Err(err).
 					Str(log.KeyProcess, "Shutdown server").
 					Msgf("failed shutting down otel with error=%s", err.Error())
 			}
@@ -138,7 +138,7 @@ func RunOrderService(c context.Context) {
 		Msg("shutting down otel")
 	err = otel.ShutdownOtel(c, otelShutdowns)
 	if err != nil {
-		logger.Error().Err(err).Stack().
+		logger.Error().Err(err).
 			Str(log.KeyProcess, "shutdown server").
 			Msgf("failed shutting down otel with error=%s", err.Error())
 	}
@@ -151,7 +151,7 @@ func RunOrderService(c context.Context) {
 		Msg("shutting down http server")
 	err = server.Shutdown(c)
 	if err != nil {
-		logger.Error().Err(err).Stack().
+		logger.Error().Err(err).
 			Str(log.KeyProcess, "shutdown server").
 			Msgf("failed shutting down http server with error=%s", err.Error())
 	}

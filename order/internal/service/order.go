@@ -43,7 +43,7 @@ func (s *OrderService) InsertOrder(
 	tx, err := s.pool.BeginTx(c, pgx.TxOptions{})
 	if err != nil {
 		err = fmt.Errorf("failed initalizing transaction with error=%w", err)
-		logger.Error().Err(err).Stack().Msg(err.Error())
+		logger.Error().Err(err).Msg(err.Error())
 		return repository.Order{}, err
 	}
 	logger.Info().Msg("initialized transaction")
@@ -54,7 +54,7 @@ func (s *OrderService) InsertOrder(
 		err = tx.Rollback(c)
 		if err != nil {
 			err = fmt.Errorf("failed rolling back transaction with error=%w", err)
-			logger.Error().Err(err).Stack().Msg(err.Error())
+			logger.Error().Err(err).Msg(err.Error())
 			return
 		}
 		logger.Info().Msg("rolled back transaction")
@@ -70,7 +70,7 @@ func (s *OrderService) InsertOrder(
 		repository.InsertOrderParams{ID: param.CartId, UserID: param.UserId},
 	)
 	if err != nil {
-		logger.Error().Err(err).Stack().Msgf("failed inserting order request with error=%s", err.Error())
+		logger.Error().Err(err).Msgf("failed inserting order request with error=%s", err.Error())
 		return repository.Order{}, err
 	}
 	logger = logger.With().
@@ -87,7 +87,7 @@ func (s *OrderService) InsertOrder(
 	for i, item := range param.OrderItems {
 		price, err := decimal.NewFromString(item.Price)
 		if err != nil {
-			logger.Error().Err(err).Stack().
+			logger.Error().Err(err).
 				Msgf("order item=%d price is not valid price with error=%s", i, err.Error())
 			return repository.Order{}, err
 		}
@@ -110,7 +110,7 @@ func (s *OrderService) InsertOrder(
 	insertedCount, err := s.queries.InsertOrderItem(c, args)
 	if err != nil || insertedCount <= 0 {
 		err = fmt.Errorf("failed inserting order item with error=%s", err.Error())
-		logger.Error().Err(err).Stack().Msg(err.Error())
+		logger.Error().Err(err).Msg(err.Error())
 		return repository.Order{}, err
 	}
 	logger.Info().Msgf("inserted order item with count=%d", insertedCount)
@@ -137,7 +137,7 @@ func (s *OrderService) FindOrderById(
 	order, err := s.queries.FindOrderById(c, param.OrderId)
 	if err != nil {
 		err = fmt.Errorf("failed finding order by id with error=%w", err)
-		logger.Error().Err(err).Stack().Msg(err.Error())
+		logger.Error().Err(err).Msg(err.Error())
 		return response.Order{}, err
 	}
 	logger.Info().Any(log.KeyOrder, order).Msg("found order by id")
@@ -153,7 +153,7 @@ func (s *OrderService) FindOrderById(
 	repoOrderItem, err := s.queries.FindOrderItemById(c, param.OrderId)
 	if err != nil {
 		err = fmt.Errorf("failed finding order by id=%s with error=%w", param.OrderId, err)
-		logger.Error().Err(err).Stack().
+		logger.Error().Err(err).
 			Msg(err.Error())
 		return response.Order{}, err
 	}
@@ -212,7 +212,7 @@ func (s *OrderService) FindOrders(
 			param.UserId,
 			err,
 		)
-		logger.Error().Err(err).Stack().
+		logger.Error().Err(err).
 			Msg(err.Error())
 		return nil, err
 	}

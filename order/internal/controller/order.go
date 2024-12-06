@@ -45,7 +45,7 @@ func (s *OrderController) InsertOrder(w http.ResponseWriter, r *http.Request) {
 		Msg("decoding requestBody")
 	reqBody := request.InsertOrderRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		logger.Error().Err(err).Stack().
+		logger.Error().Err(err).
 			Str(log.KeyProcess, "decoding requestBody").
 			Msgf("failed decoding request body with error=%s", err.Error())
 		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
@@ -73,7 +73,7 @@ func (s *OrderController) InsertOrder(w http.ResponseWriter, r *http.Request) {
 		Str(log.KeyProcess, "validating requestBody").
 		Msg("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
-		logger.Error().Err(err).Stack().
+		logger.Error().Err(err).
 			Str(log.KeyProcess, "validating requestBody").
 			Msgf("failed validating request body with error=%s", err.Error())
 		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
@@ -98,7 +98,7 @@ func (s *OrderController) InsertOrder(w http.ResponseWriter, r *http.Request) {
 	cart, err := s.service.InsertOrder(c, reqBody)
 	if err != nil {
 		err = fmt.Errorf("failed inserting order with error=%w", err)
-		logger.Error().Err(err).Stack().
+		logger.Error().Err(err).
 			Str(log.KeyProcess, "inserting cart").
 			Msg(err.Error())
 		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
@@ -140,7 +140,7 @@ func (s *OrderController) FindOrderById(w http.ResponseWriter, r *http.Request) 
 	logger.Info().Msg("finding orders")
 	orders, err := s.service.FindOrderById(c, request.FindOrderById{OrderId: orderId})
 	if err != nil {
-		logger.Error().Err(err).Stack().Msg(err.Error())
+		logger.Error().Err(err).Msg(err.Error())
 		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,

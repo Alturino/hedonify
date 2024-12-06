@@ -58,6 +58,7 @@ func InitLogger(filepath string) *zerolog.Logger {
 			With().
 			Timestamp().
 			Caller().
+			Stack().
 			Int("pid", os.Getpid()).
 			Int("gid", os.Getgid()).
 			Int("uid", os.Getuid()).
