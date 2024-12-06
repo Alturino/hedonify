@@ -23,7 +23,7 @@ type RemoveCartItem struct {
 }
 
 type InsertCartItem struct {
-	CartId    uuid.UUID `validate:"required, uuid"`
+	CartId    uuid.UUID `validate:"required,uuid"  json:"cartId"`
 	ProductId uuid.UUID `validate:"required,uuid"  json:"productId"`
 	Price     string    `validate:"required"       json:"price"`
 	Quantity  int       `validate:"required,gte=1" json:"quantity"`

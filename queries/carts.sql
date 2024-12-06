@@ -13,7 +13,12 @@ select * from cart_items where id = $1;
 -- name: DeleteCartItemFromCartsById :one
 delete from cart_items where id = $1 and cart_id = $2 returning *;
 
--- name: InsertCartItem :copyfrom
+-- name: InsertCartItem :one
+insert into cart_items (cart_id, product_id, quantity, price) values (
+    $1, $2, $3, $4
+) returning *;
+
+-- name: InsertCartItems :copyfrom
 insert into cart_items (cart_id, product_id, quantity, price) values (
     $1, $2, $3, $4
 );

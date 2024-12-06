@@ -16,7 +16,8 @@ type Querier interface {
 	FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]Cart, error)
 	FindCartItemById(ctx context.Context, id uuid.UUID) (CartItem, error)
 	InsertCart(ctx context.Context, userID uuid.UUID) (Cart, error)
-	InsertCartItem(ctx context.Context, arg []InsertCartItemParams) (int64, error)
+	InsertCartItem(ctx context.Context, arg InsertCartItemParams) (CartItem, error)
+	InsertCartItems(ctx context.Context, arg []InsertCartItemsParams) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

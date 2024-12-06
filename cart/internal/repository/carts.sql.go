@@ -116,7 +116,40 @@ func (q *Queries) InsertCart(ctx context.Context, userID uuid.UUID) (Cart, error
 	return i, err
 }
 
+const insertCartItem = `-- name: InsertCartItem :one
+insert into cart_items (cart_id, product_id, quantity, price) values (
+    $1, $2, $3, $4
+) returning id, cart_id, product_id, quantity, price, created_at, updated_at
+`
+
 type InsertCartItemParams struct {
+	CartID    uuid.UUID      `json:"cart_id"`
+	ProductID uuid.UUID      `json:"product_id"`
+	Quantity  int32          `json:"quantity"`
+	Price     pgtype.Numeric `json:"price"`
+}
+
+func (q *Queries) InsertCartItem(ctx context.Context, arg InsertCartItemParams) (CartItem, error) {
+	row := q.db.QueryRow(ctx, insertCartItem,
+		arg.CartID,
+		arg.ProductID,
+		arg.Quantity,
+		arg.Price,
+	)
+	var i CartItem
+	err := row.Scan(
+		&i.ID,
+		&i.CartID,
+		&i.ProductID,
+		&i.Quantity,
+		&i.Price,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+type InsertCartItemsParams struct {
 	CartID    uuid.UUID      `json:"cart_id"`
 	ProductID uuid.UUID      `json:"product_id"`
 	Quantity  int32          `json:"quantity"`

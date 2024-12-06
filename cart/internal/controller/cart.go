@@ -105,53 +105,100 @@ func (t *CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 
 // TODO: Not Implemented
 func (t *CartController) InsertCartItem(w http.ResponseWriter, r *http.Request) {
-	_, span := otel.Tracer.Start(r.Context(), "CartController InsertCart")
+	c, span := otel.Tracer.Start(r.Context(), "CartController InsertCartItem")
 	defer span.End()
-	return
+
+	logger := zerolog.Ctx(c).
+		With().
+		Str(log.KeyTag, "CartController InsertCartItem").
+		Str(log.KeyProcess, "decoding requestbody").
+		Logger()
+
+	logger.Info().Msg("decoding requestbody")
+	reqBody := request.InsertCartItem{}
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		err = fmt.Errorf("failed decoding request body with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
+		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			"status":     "failed",
+			"statusCode": http.StatusBadRequest,
+			"message":    err.Error(),
+		})
+		return
+	}
+	logger = logger.With().Any(log.KeyRequestBody, reqBody).Logger()
+	logger.Info().Msg("decoded request body")
+
+	logger = logger.With().Str(log.KeyProcess, "initializing validator").Logger()
+	logger.Info().Msg("initializing validator")
+	validate := validator.New(validator.WithRequiredStructEnabled())
+	logger.Info().Msg("initialized validator")
+
+	logger = logger.With().Any(log.KeyProcess, "validating request body").Logger()
+	logger.Info().Msg("validating request body")
+	cart := request.InsertCart{}
+	if err := validate.StructCtx(c, cart); err != nil {
+		err = fmt.Errorf("failed validating request body with error=%s", err.Error())
+		logger.Error().Err(err).Msg(err.Error())
+		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			"status":     "failed",
+			"statusCode": http.StatusBadRequest,
+			"message":    err.Error(),
+		})
+		return
+	}
+	logger.Info().Msg("validated request body")
+
+	c = logger.WithContext(c)
+	t.service.InsertCartItem(c, request.InsertCartItem{})
 }
 
 func (t *CartController) FindCartById(w http.ResponseWriter, r *http.Request) {
 	c, span := otel.Tracer.Start(r.Context(), "CartController FindCartById")
 	defer span.End()
 
-	cartId := r.PathValue("cartId")
-
 	logger := zerolog.Ctx(c).With().
 		Str(log.KeyTag, "CartController FindCartById").
-		Str(log.KeyCartID, cartId).
+		Str(log.KeyProcess, "validating uuid").
 		Logger()
 
-	logger.Info().
-		Str(log.KeyProcess, "validating uuid").
-		Msg("checking id is valid uuid")
-	uuid, err := uuid.Parse(cartId)
+	logger.Info().Msg("validating uuid")
+	cartId, err := uuid.Parse(r.PathValue("cartId"))
 	if err != nil {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "finding cart").
-			Msgf("id=%s is not a valid uuid", cartId)
+		err = fmt.Errorf("failed validating cartId=%s with error=%w", cartId.String(), err)
+		logger.Error().Err(err).Msg(err.Error())
 		return
 	}
-	logger.Info().
-		Str(log.KeyProcess, "validating uuid").
-		Msgf("id=%s is not a valid uuid", cartId)
+	logger = logger.With().Str(log.KeyCartID, cartId.String()).Logger()
+	logger.Info().Msgf("validated uuid cartId=%s", cartId.String())
 
-	cart, err := t.service.FindCartById(c, uuid)
+	logger = logger.With().
+		Str(log.KeyProcess, fmt.Sprintf("finding cartId=%s", cartId.String())).
+		Logger()
+	logger.Info().Msgf("finding cartId=%s", cartId.String())
+	c = logger.WithContext(c)
+	cart, err := t.service.FindCartById(c, cartId)
 	if err != nil {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "finding cart").
-			Msgf("cart by id=%s not found", cartId)
+		err = fmt.Errorf("failed finding cartId=%s with error=%w", cartId.String(), err)
+		logger.Error().Err(err).Msg(err.Error())
 		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
-			"message":    "successfully inserted cart",
-			"data": map[string]interface{}{
-				"cart": cart,
-			},
+			"message":    err.Error(),
 		})
 		return
 	}
+	logger = logger.With().Any(log.KeyCart, cart).Logger()
+	logger.Info().Msgf("found cartId=%s", cartId.String())
+
+	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		"status":     "success",
+		"statusCode": http.StatusOK,
+		"message":    fmt.Sprintf("cartId=%s found", cartId.String()),
+		"data": map[string]interface{}{
+			"cart": cart,
+		},
+	})
 }
 
 func (t *CartController) FindCarts(w http.ResponseWriter, r *http.Request) {
