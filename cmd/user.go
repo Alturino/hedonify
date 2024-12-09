@@ -6,6 +6,6 @@ import (
 	"github.com/Alturino/ecommerce/user/cmd"
 )
 
-func startUserService(c context.Context) {
+func runUserService(c context.Context) {
 	cmd.RunUserService(c)
 }

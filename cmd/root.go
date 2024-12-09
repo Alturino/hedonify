@@ -44,7 +44,7 @@ func Start() {
 			Use:   "product",
 			Short: "Run product service",
 			Run: func(cmd *cobra.Command, args []string) {
-				startProductService(cmd.Context())
+				runProductService(cmd.Context())
 			},
 		},
 		{
@@ -65,7 +65,7 @@ func Start() {
 			Use:   "user",
 			Short: "Run user service",
 			Run: func(cmd *cobra.Command, args []string) {
-				startUserService(cmd.Context())
+				runUserService(cmd.Context())
 			},
 		},
 	}

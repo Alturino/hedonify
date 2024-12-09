@@ -6,6 +6,6 @@ import (
 	"github.com/Alturino/ecommerce/product/cmd"
 )
 
-func startProductService(c context.Context) {
-	cmd.StartProductService(c)
+func runProductService(c context.Context) {
+	cmd.RunProductService(c)
 }

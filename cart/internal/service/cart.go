@@ -36,13 +36,13 @@ func (s *CartService) InsertCart(
 	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KeyTag, "CartService InsertCart").
-		Str(log.KeyProcess, "initalizing transaction").
+		Str(log.KeyProcess, "initializing transaction").
 		Logger()
 
-	logger.Info().Msg("initalizing transaction")
+	logger.Info().Msg("initializing transaction")
 	tx, err := s.pool.BeginTx(c, pgx.TxOptions{})
 	if err != nil {
-		logger.Error().Err(err).Msgf("failed initalizing transaction with error=%s", err.Error())
+		logger.Error().Err(err).Msgf("failed initializing transaction with error=%s", err.Error())
 		return repository.Cart{}, err
 	}
 	logger.Info().Msg("initialized transaction")

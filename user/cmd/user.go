@@ -43,11 +43,11 @@ func RunUserService(c context.Context) {
 
 	logger.Info().
 		Str(log.KeyProcess, "start server").
-		Msg("initalizing router")
+		Msg("initializing router")
 	mux := mux.NewRouter()
 	logger.Info().
 		Str(log.KeyProcess, "start server").
-		Msg("initalized router")
+		Msg("initialized router")
 
 	logger.Info().
 		Str(log.KeyProcess, "start server").
@@ -59,17 +59,17 @@ func RunUserService(c context.Context) {
 
 	logger.Info().
 		Str(log.KeyProcess, "InitOtelSdk").
-		Msg("initalizing otel sdk")
+		Msg("initializing otel sdk")
 	otelShutdowns, err := otel.InitOtelSdk(c, common.AppUserService)
 	if err != nil {
 		logger.Error().
 			Err(err).
 			Str(log.KeyProcess, "InitOtelSdk").
-			Msgf("failed initalizing otel sdk with error=%s", err.Error())
+			Msgf("failed initializing otel sdk with error=%s", err.Error())
 	}
 	logger.Info().
 		Str(log.KeyProcess, "InitOtelSdk").
-		Msg("initalized otel sdk")
+		Msg("initialized otel sdk")
 
 	logger.Info().
 		Str(log.KeyProcess, "init database").
@@ -98,7 +98,7 @@ func RunUserService(c context.Context) {
 
 	logger.Info().
 		Str(log.KeyProcess, "start server").
-		Msg("initalizing server")
+		Msg("initializing server")
 	server := http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Application.Host, cfg.Application.Port),
 		BaseContext:  func(net.Listener) context.Context { return c },

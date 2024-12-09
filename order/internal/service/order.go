@@ -36,13 +36,13 @@ func (s *OrderService) InsertOrder(
 	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KeyTag, "OrderService InsertOrder").
-		Str(log.KeyProcess, "initalizing transaction").
+		Str(log.KeyProcess, "initializing transaction").
 		Logger()
 
-	logger.Info().Msg("initalizing transaction")
+	logger.Info().Msg("initializing transaction")
 	tx, err := s.pool.BeginTx(c, pgx.TxOptions{})
 	if err != nil {
-		err = fmt.Errorf("failed initalizing transaction with error=%w", err)
+		err = fmt.Errorf("failed initializing transaction with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
 		return repository.Order{}, err
 	}

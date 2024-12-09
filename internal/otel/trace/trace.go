@@ -61,7 +61,7 @@ func InitTracerProvider(
 	}
 	logger.Info().
 		Str(log.KeyProcess, "Init TracerProvider").
-		Msg("initalized traceRes")
+		Msg("initialized traceRes")
 	traceProvider := trace.NewTracerProvider(
 		trace.WithBatcher(traceExporter, trace.WithBatchTimeout(5*time.Second)),
 		trace.WithResource(traceRes),

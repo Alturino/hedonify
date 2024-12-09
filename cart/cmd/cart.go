@@ -28,78 +28,47 @@ func RunCartService(c context.Context) {
 		Str(log.KeyAppName, common.AppCartService).
 		Str(log.KeyTag, "main RunCartService").
 		Logger()
-	c = logger.WithContext(c)
 
-	logger.Info().
-		Str(log.KeyProcess, "init config").
-		Msg("initializing config")
+	logger = logger.With().Str(log.KeyProcess, "init config").Logger()
+	logger.Info().Msg("initializing config")
 	cfg := config.InitConfig(c, common.AppCartService)
-	logger = logger.With().
-		Any(log.KeyConfig, cfg).
-		Logger()
-	c = logger.WithContext(c)
-	logger.Info().
-		Str(log.KeyProcess, "init config").
-		Msg("initialized config")
+	logger = logger.With().Any(log.KeyConfig, cfg).Logger()
+	logger.Info().Msg("initialized config")
 
-	logger.Info().
-		Str(log.KeyProcess, "start server").
-		Msg("initalizing router")
+	logger = logger.With().Str(log.KeyProcess, "initializing router").Logger()
+	logger.Info().Msg("initializing router")
 	mux := mux.NewRouter()
-	logger.Info().
-		Str(log.KeyProcess, "start server").
-		Msg("initalized router")
-
-	logger.Info().
-		Str(log.KeyProcess, "start server").
-		Msg("attaching middleware")
 	mux.Use(middleware.Logging)
-	logger.Info().
-		Str(log.KeyProcess, "start server").
-		Msg("attached middleware")
+	logger.Info().Msg("initialized router")
 
-	logger.Info().
-		Str(log.KeyProcess, "InitOtelSdk").
-		Msg("initalizing otel sdk")
+	logger = logger.With().Str(log.KeyProcess, "initializing otel sdk").Logger()
+	logger.Info().Msg("initializing otel sdk")
 	otelShutdowns, err := otel.InitOtelSdk(c, common.AppCartService)
 	if err != nil {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "InitOtelSdk").
-			Msgf("failed initalizing otel sdk with error=%s", err.Error())
+		err = fmt.Errorf("failed initializing otel sdk with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
+		return
 	}
-	logger.Info().
-		Str(log.KeyProcess, "InitOtelSdk").
-		Msg("initalized otel sdk")
+	logger.Info().Msg("initialized otel sdk")
 
-	logger.Info().
-		Str(log.KeyProcess, "init database").
-		Msg("initializing database")
+	logger = logger.With().Str(log.KeyProcess, "initializing database").Logger()
+	logger.Info().Msg("initializing database")
 	db := database.NewDatabaseClient(c, cfg.Database)
-	logger.Info().
-		Str(log.KeyProcess, "init database").
-		Msg("initialized database")
+	logger.Info().Msg("initialized database")
 
-	logger.Info().
-		Str(log.KeyProcess, "initializing cartService").
-		Msg("initializing cartService")
+	logger = logger.With().Str(log.KeyProcess, "initializing cart service").Logger()
+	logger.Info().Msg("initializing cart service")
 	queries := repository.New(db)
 	cartService := service.NewCartService(db, queries)
-	logger.Info().
-		Str(log.KeyProcess, "initializing cartService").
-		Msg("initialized cartService")
+	logger.Info().Msg("initialized cart service")
 
-	logger.Info().
-		Str(log.KeyProcess, "initializing userController").
-		Msg("initializing userController")
+	logger = logger.With().Str(log.KeyProcess, "initializing cart controller").Logger()
+	logger.Info().Msg("initializing cart controller")
 	controller.AttachCartController(mux, &cartService)
-	logger.Info().
-		Str(log.KeyProcess, "initialized userController").
-		Msg("initialized userController")
+	logger.Info().Msg("initialized cart controller")
 
-	logger.Info().
-		Str(log.KeyProcess, "start server").
-		Msg("initalizing server")
+	logger = logger.With().Str(log.KeyProcess, "initializing server").Logger()
+	logger.Info().Msg("initializing server")
 	server := http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Application.Host, cfg.Application.Port),
 		BaseContext:  func(net.Listener) context.Context { return c },
@@ -107,61 +76,45 @@ func RunCartService(c context.Context) {
 		ReadTimeout:  45 * time.Second,
 		WriteTimeout: 45 * time.Second,
 	}
-	logger.Info().
-		Str(log.KeyProcess, "start server").
-		Msg("initialized server")
+	logger.Info().Msg("initialized server")
 
 	go func() {
-		logger.Info().
-			Str(log.KeyProcess, "start server").
-			Msgf("start listening request at %s", server.Addr)
+		logger = logger.With().Str(log.KeyProcess, "start server").Logger()
+		logger.Info().Msgf("start listening request at %s", server.Addr)
+
+		logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error().
-				Err(err).
-				Str(log.KeyProcess, "Shutdown server").
-				Msgf("error=%s occured while server is running", err.Error())
+			err = fmt.Errorf("error=%w occured while server is running", err)
+			logger.Error().Err(err).Msg(err.Error())
 			if err := otel.ShutdownOtel(c, otelShutdowns); err != nil {
-				logger.Error().
-					Err(err).
-					Str(log.KeyProcess, "Shutdown server").
-					Msgf("failed shutting down otel with error=%s", err.Error())
+				err = fmt.Errorf("failed shutting down otel with error=%w", err)
+				logger.Error().Err(err).Msg(err.Error())
+				return
 			}
+			return
 		}
-		logger.Info().
-			Str(log.KeyProcess, "shutdown server").
-			Msg("shutdown server")
+		logger.Info().Msg("shutdown server")
 	}()
 
 	<-c.Done()
-	logger.Info().
-		Str(log.KeyProcess, "shutdown server").
-		Msg("received interuption signal shutting down")
+	logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
+	logger.Info().Msg("received interuption signal shutting down")
 
-	logger.Info().
-		Str(log.KeyProcess, "shutdown server").
-		Msg("shutting down otel")
-	err = otel.ShutdownOtel(c, otelShutdowns)
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "shutdown server").
-			Msgf("failed shutting down otel with error=%s", err.Error())
-	}
-	logger.Info().
-		Str(log.KeyProcess, "shutdown server").
-		Msg("shutdown otel")
-
-	logger.Info().
-		Str(log.KeyProcess, "shutdown server").
-		Msg("shutting down http server")
+	logger.Info().Msg("shutting down http server")
 	err = server.Shutdown(c)
 	if err != nil {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "shutdown server").
-			Msgf("failed shutting down http server with error=%s", err.Error())
+		err = fmt.Errorf("filed shutting down http server with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
 	}
-	logger.Info().
-		Str(log.KeyProcess, "shutdown server").
-		Msg("shutdown http server")
+	logger.Info().Msg("shutdown http server")
+
+	logger.Info().Msg("shutting down otel")
+	err = otel.ShutdownOtel(c, otelShutdowns)
+	if err != nil {
+		err = fmt.Errorf("failed shutting down otel with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
+	}
+	logger.Info().Msg("shutdown otel")
+
+	logger.Info().Msg("server completely shutdown")
 }
