@@ -2,6 +2,7 @@ package log
 
 const (
 	KeyAppName            = "app"
+	KeyAuthToken          = "authToken"
 	KeyOrder              = "order"
 	KeyOrderItems         = "orderItems"
 	KeyOrders             = "orders"

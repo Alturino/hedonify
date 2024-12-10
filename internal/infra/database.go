@@ -53,7 +53,6 @@ func NewDatabaseClient(
 		err = fmt.Errorf("failed creating pgx config with error=%w", err)
 		logger.Fatal().Err(err).Msg(err.Error())
 	}
-	logger = logger.With().Any("pgxConfig", pgxConfig).Logger()
 	logger.Info().Msgf("initialized pgx config")
 
 	logger = logger.With().Str(log.KeyProcess, "attaching otel tracer to pgx").Logger()
@@ -84,7 +83,6 @@ func NewDatabaseClient(
 	logger = logger.With().Str(log.KeyProcess, "creating sql.DB instance").Logger()
 	logger.Info().Msg("creating sql.DB instance")
 	db := stdlib.OpenDBFromPool(pool)
-	logger = logger.With().Any("db", db).Logger()
 	logger.Info().Msg("created sql.DB instance")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing db driver").Logger()
@@ -94,7 +92,6 @@ func NewDatabaseClient(
 		err = fmt.Errorf("failed creating postgres driver to do migration with error=%w", err)
 		logger.Fatal().Err(err).Msg(err.Error())
 	}
-	logger = logger.With().Any("db driver", driver).Logger()
 	logger.Info().Msg("initialized db driver")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing migration").Logger()
@@ -104,7 +101,6 @@ func NewDatabaseClient(
 		err = fmt.Errorf("failed migration postgres with error=%w", err)
 		logger.Fatal().Err(err).Msg(err.Error())
 	}
-	logger = logger.With().Any("migration", migration).Logger()
 	logger.Info().Msg("initialized migration")
 
 	logger = logger.With().Str(log.KeyProcess, "migration down").Logger()

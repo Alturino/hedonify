@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -45,38 +46,34 @@ func InitConfig(c context.Context, filename string) *Config {
 		logger := zerolog.Ctx(c).
 			With().
 			Str(log.KeyTag, "main InitConfig").
+			Str(log.KeyProcess, "init config").
+			Str("filename", filename).
 			Logger()
-
-		logger.Info().
-			Str(log.KeyProcess, "InitConfig").
-			Msg("starting InitConfig")
 
 		viper.SetConfigName(filename)
 		viper.AddConfigPath("./env")
 		viper.SetConfigType("yaml")
 		viper.AutomaticEnv()
 
+		logger = logger.With().Str(log.KeyProcess, "reading config").Logger()
+		logger.Info().Msg("reading config")
 		err := viper.ReadInConfig()
 		if err != nil {
-			logger.Fatal().
-				Err(err).
-				Str("filename", filename).
-				Str(log.KeyProcess, "InitConfig").
-				Msgf("error when reading config with error=%s", err.Error())
+			err = fmt.Errorf("error when reading config with error=%w", err)
+			logger.Fatal().Err(err).Msg(err.Error())
 		}
+		logger.Info().Msg("read config")
 
+		logger = logger.With().Str(log.KeyProcess, "unmarshaling config").Logger()
+		logger.Info().Msg("unmarshaling config")
 		err = viper.Unmarshal(&cfg)
 		if err != nil {
-			logger.Fatal().
-				Err(err).
-				Str(log.KeyProcess, "InitConfig").
-				Msgf("error unmarshaling config with error=%s", err.Error())
+			err = fmt.Errorf("error unmarshaling config with error=%w", err)
+			logger.Fatal().Err(err).Msg(err.Error())
 		}
 		config = &cfg
-		logger.Info().
-			Str(log.KeyProcess, "InitConfig").
-			Any(log.KeyConfig, config).
-			Msg("marshalled config")
+		logger = logger.With().Any(log.KeyConfig, cfg).Logger()
+		logger.Info().Msg("marshalled config")
 	})
 	return config
 }
