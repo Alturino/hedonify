@@ -27,6 +27,13 @@ func Start() {
 	rootCmd := &cobra.Command{}
 	commands := []*cobra.Command{
 		{
+			Use:   "cart",
+			Short: "Run cart service",
+			Run: func(cmd *cobra.Command, args []string) {
+				runCartService(cmd.Context())
+			},
+		},
+		{
 			Use:   "notification",
 			Short: "Run notification service",
 			Run: func(cmd *cobra.Command, args []string) {
@@ -52,13 +59,6 @@ func Start() {
 			Short: "Run shop service",
 			Run: func(cmd *cobra.Command, args []string) {
 				runShopService(cmd.Context())
-			},
-		},
-		{
-			Use:   "cart",
-			Short: "Run cart service",
-			Run: func(cmd *cobra.Command, args []string) {
-				runCartService(cmd.Context())
 			},
 		},
 		{
