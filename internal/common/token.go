@@ -2,50 +2,58 @@ package common
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rs/zerolog"
 
 	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/config"
+	"github.com/Alturino/ecommerce/internal/log"
 )
 
 func VerifyToken(c context.Context, token string) error {
-	logger := zerolog.Ctx(c)
+	logger := zerolog.Ctx(c).
+		With().
+		Str(log.KeyTag, "VerifyToken").
+		Str(log.KeyAuthToken, token).
+		Logger()
 
 	claims := jwt.RegisteredClaims{}
-	config := config.InitConfig(c, AppUserService)
 
-	var subject string
+	logger = logger.With().Str(log.KeyProcess, "initializing config").Logger()
+	logger.Info().Msg("initializing config")
+	c = logger.WithContext(c)
+	config := config.InitConfig(c, AppUserService)
+	logger.Info().Msg("initialized config")
+
+	logger = logger.With().Str(log.KeyProcess, "parsing claims").Logger()
 	jwtToken, err := jwt.ParseWithClaims(token,
 		claims,
 		func(t *jwt.Token) (interface{}, error) {
-			sub, err := t.Claims.GetSubject()
-			if err != nil {
-				logger.Error().
-					Err(inErrors.ErrEmptySubject).
-					Msg(inErrors.ErrEmptySubject.Error())
-				return nil, err
-			}
-			subject = sub
 			return config.Application.SecretKey, nil
 		},
 		jwt.WithAudience(AudienceUser),
-		jwt.WithSubject(subject),
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}),
 		jwt.WithExpirationRequired(),
 		jwt.WithIssuedAt(),
 		jwt.WithIssuer(AppUserService),
 	)
 	if err != nil {
+		err = fmt.Errorf("failed parsing with claims with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
 		return err
 	}
+	logger = logger.With().Any(log.KeyToken, jwtToken).Logger()
+	logger.Info().Msg("parsed claims")
 
+	logger = logger.With().Str(log.KeyProcess, "validating token").Logger()
+	logger.Info().Msg("validating token")
 	if !jwtToken.Valid {
 		logger.Error().Err(inErrors.ErrTokenInvalid).Msg(inErrors.ErrTokenInvalid.Error())
 		return inErrors.ErrTokenInvalid
 	}
+	logger.Info().Msg("validated token")
 
 	return nil
 }
