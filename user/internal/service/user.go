@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"golang.org/x/crypto/bcrypt"
@@ -36,45 +38,36 @@ func (u *UserService) Login(
 	c, span := inOtel.Tracer.Start(c, "UserService Login")
 	defer span.End()
 
-	logger := zerolog.Ctx(c).With().
+	logger := zerolog.Ctx(c).
+		With().
 		Str(log.KeyTag, "UserService Login").
 		Str(log.KeyEmail, param.Email).
 		Logger()
 
-	logger.Info().
-		Str(log.KeyProcess, "finding user").
-		Str(log.KeyEmail, param.Email).
-		Msg("finding user by email")
+	logger = logger.With().Str(log.KeyProcess, "finding user by email").Logger()
+	logger.Info().Msg("finding user by email")
 	user, err := u.queries.FindByEmail(c, param.Email)
 	if err != nil {
-		logger.Error().
-			Err(inErrors.ErrUserNotFound).
-			Str(log.KeyProcess, "finding user").
-			Msgf("failed finding user by email=%s not found", param.Email)
-		return "", errors.Join(err, inErrors.ErrUserNotFound)
+		err = errors.Join(err, inErrors.ErrUserNotFound)
+		err = fmt.Errorf("failed finding user by email=%s with error=%w", param.Email, err)
+		logger.Error().Err(err).Msg(err.Error())
+		return "", err
 	}
-	logger.Info().
-		Str(log.KeyProcess, "finding user").
-		Msg("found user by email")
+	logger.Info().Msg("found user by email")
 
-	logger.Info().
-		Str(log.KeyProcess, "verifying password").
-		Msg("Verifying hashed password with password")
+	logger = logger.With().Str(log.KeyProcess, "verifying hashed password with password").Logger()
+	logger.Info().Msg("verifying hashed password with password")
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(param.Password))
 	if err != nil {
-		logger.Error().
-			Err(inErrors.ErrPasswordMismatch).
-			Str(log.KeyProcess, "verifying password").
-			Msg("Failed verifying hashed password and password is mismatch")
-		return "", inErrors.ErrPasswordMismatch
+		err = errors.Join(err, inErrors.ErrPasswordMismatch)
+		err = fmt.Errorf("failed verifying hashed password and password with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
+		return "", err
 	}
-	logger.Info().
-		Str(log.KeyProcess, "verifying password").
-		Msg("Verified hashed password with password")
+	logger.Info().Msg("verified hashed password with password")
 
-	logger.Info().
-		Str(log.KeyProcess, "creating login token").
-		Msg("creating login token")
+	logger = logger.With().Str(log.KeyProcess, "creating login token").Logger()
+	logger.Info().Msg("creating login token")
 	tokenCreationTime := time.Now()
 	token := jwt.NewWithClaims(
 		jwt.SigningMethodHS256,
@@ -84,26 +77,20 @@ func (u *UserService) Login(
 			Subject:   user.ID.String(),
 			ExpiresAt: jwt.NewNumericDate(tokenCreationTime.Add(30 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(tokenCreationTime),
+			ID:        uuid.NewString(),
 		},
 	)
-	logger.Info().
-		Str(log.KeyProcess, "creating login token").
-		Msg("created login token")
+	logger.Info().Msg("created login token")
 
-	logger.Info().
-		Str(log.KeyProcess, "signing token").
-		Msg("signing token")
+	logger = logger.With().Str(log.KeyProcess, "signing token").Logger()
+	logger.Info().Msg("signing token")
 	signedToken, err := token.SignedString([]byte(u.config.SecretKey))
 	if err != nil {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "verifying password").
-			Msgf("Failed signing token with error=%s", err.Error())
+		err = fmt.Errorf("failed signing token with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
 		return "", err
 	}
-	logger.Info().
-		Str(log.KeyProcess, "signing token").
-		Msg("signed token")
+	logger.Info().Msg("signed token")
 
 	return signedToken, nil
 }
@@ -118,24 +105,19 @@ func (u *UserService) Register(
 		Str(log.KeyEmail, param.Email).
 		Logger()
 
-	logger.Info().
-		Str(log.KeyProcess, "hashing password").
-		Msg("hashing password")
+	logger = logger.With().Str(log.KeyProcess, "hashing password").Logger()
+	logger.Info().Msg("hashing password")
 	hashed, err := bcrypt.GenerateFromPassword([]byte(param.Password), bcrypt.DefaultCost)
 	if err != nil {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "hashing password").
-			Msgf("failed hashing password with error=%s", err.Error())
-		return repository.User{}, errors.Join(err, globalErr.ErrFailedHashToken)
+		err = errors.Join(err, globalErr.ErrFailedHashToken)
+		err = fmt.Errorf("failed hashing password with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
+		return repository.User{}, err
 	}
-	logger.Info().
-		Str(log.KeyProcess, "hashing password").
-		Msg("hashed password")
+	logger.Info().Msg("hashed password")
 
-	logger.Info().
-		Str(log.KeyProcess, "inserting user to database").
-		Msg("inserting user to database")
+	logger = logger.With().Str(log.KeyProcess, "inserting user to database").Logger()
+	logger.Info().Msg("inserting user to database")
 	user, err := u.queries.InsertUser(c, repository.InsertUserParams{
 		Username:  param.Username,
 		Email:     param.Email,
@@ -144,14 +126,11 @@ func (u *UserService) Register(
 		UpdatedAt: pgtype.Timestamp{Time: time.Now()},
 	})
 	if err != nil {
-		logger.Error().
-			Err(err).
-			Msgf("failed inserting user to database with error=%s", err.Error())
+		err = fmt.Errorf("failed inserting user to database with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
 		return repository.User{}, err
 	}
-	logger.Info().
-		Str(log.KeyProcess, "inserting user to database").
-		Msg("inserted user to database")
+	logger.Info().Msg("inserted user to database")
 
 	return user, nil
 }
