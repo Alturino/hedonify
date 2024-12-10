@@ -26,4 +26,5 @@ const (
 	KeyToken              = "token"
 	KeyUserID             = "userId"
 	KeyOrderID            = "orderId"
+	KeyDbURL              = "dbURL"
 )

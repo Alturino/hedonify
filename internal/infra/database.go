@@ -25,10 +25,16 @@ func NewDatabaseClient(
 	c context.Context,
 	dbConfig config.Database,
 ) *pgxpool.Pool {
-	logger := zerolog.Ctx(c).With().
+	logger := zerolog.Ctx(c).
+		With().
 		Str(log.KeyTag, "main NewDatabaseClient").
+		Str(log.KeyProcess, "connecting to database").
 		Logger()
 
+	logger.Info().Msg("connecting to database")
+
+	logger = logger.With().Str(log.KeyProcess, "initializing postgresUrl").Logger()
+	logger.Info().Msg("initializing postgresUrl")
 	postgresUrl := fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
 		dbConfig.Username,
@@ -37,95 +43,87 @@ func NewDatabaseClient(
 		int(dbConfig.Port),
 		dbConfig.DbName,
 	)
+	logger = logger.With().Str(log.KeyDbURL, postgresUrl).Logger()
+	logger.Info().Msg("initialized postgresUrl")
 
-	logger.Info().
-		Str(log.KeyProcess, "initializing pgx config").
-		Msgf("initializing connection to database")
+	logger = logger.With().Str(log.KeyProcess, "initializing pgx config").Logger()
+	logger.Info().Msgf("initializing pgx config")
 	pgxConfig, err := pgxpool.ParseConfig(postgresUrl)
 	if err != nil {
-		logger.Fatal().
-			Err(err).
-			Str(log.KeyProcess, "NewPostgreSQLClient").
-			Msgf("failed creating pgx config with error=%s", err.Error())
+		err = fmt.Errorf("failed creating pgx config with error=%w", err)
+		logger.Fatal().Err(err).Msg(err.Error())
 	}
-	logger.Info().
-		Str(log.KeyProcess, "initializing pgx config").
-		Msgf("initialized connection to database")
+	logger = logger.With().Any("pgxConfig", pgxConfig).Logger()
+	logger.Info().Msgf("initialized pgx config")
 
-	logger.Info().
-		Str(log.KeyProcess, "attach tracer to pgx").
-		Msgf("attaching tracer to pgx")
+	logger = logger.With().Str(log.KeyProcess, "attaching otel tracer to pgx").Logger()
+	logger.Info().Msgf("attaching otel tracer to pgx")
 	pgxConfig.ConnConfig.Tracer = otelpgx.NewTracer(
 		otelpgx.WithAttributes(semconv.DBSystemPostgreSQL),
 	)
-	logger.Info().
-		Str(log.KeyProcess, "attach tracer to pgx").
-		Msgf("attached tracer to pgx")
+	logger.Info().Msgf("attached otel tracer to pgx")
 
-	logger.Info().
-		Str(log.KeyProcess, "creating connection pool").
-		Msg("creating connection pool to postgres")
+	logger = logger.With().Str(log.KeyProcess, "creating connection pool").Logger()
+	logger.Info().Msg("creating connection pool")
 	pool, err := pgxpool.NewWithConfig(c, pgxConfig)
 	if err != nil {
-		logger.Fatal().
-			Err(err).
-			Str(log.KeyProcess, "creating connection pool").
-			Msgf("failed creating connection pool to postgres with error=%s", err.Error())
+		err = fmt.Errorf("failed creating connection pool with error=%w", err)
+		logger.Fatal().Err(err).Msg(err.Error())
 	}
-	logger.Info().
-		Str(log.KeyProcess, "creating connection pool").
-		Msg("created connection pool to postgres")
+	logger.Info().Msg("created connection pool")
 
-	logger.Info().
-		Str(log.KeyProcess, "ping db connection").
-		Msg("pinging db connection")
+	logger = logger.With().Str(log.KeyProcess, "ping db").Logger()
+	logger.Info().Msg("ping db")
 	err = pool.Ping(c)
 	if err != nil {
-		logger.Fatal().
-			Err(err).
-			Str(log.KeyProcess, "ping db connection").
-			Msgf("failed ping connction to db with error=%s", err.Error())
+		err = fmt.Errorf("failed ping db with error=%w", err)
+		logger.Fatal().Err(err).Msg(err.Error())
 	}
-	logger.Info().
-		Str(log.KeyProcess, "ping db connection").
-		Msg("successed ping db connection")
+	logger.Info().Msg("successed ping db")
 
+	logger = logger.With().Str(log.KeyProcess, "creating sql.DB instance").Logger()
+	logger.Info().Msg("creating sql.DB instance")
 	db := stdlib.OpenDBFromPool(pool)
+	logger = logger.With().Any("db", db).Logger()
+	logger.Info().Msg("created sql.DB instance")
 
+	logger = logger.With().Str(log.KeyProcess, "initializing db driver").Logger()
+	logger.Info().Msg("initializing db driver")
 	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
-		logger.Fatal().
-			Err(err).
-			Str(log.KeyProcess, "NewPostgreSQLClient").
-			Msgf("failed creating postgres driver to do migration with error=%s", err.Error())
+		err = fmt.Errorf("failed creating postgres driver to do migration with error=%w", err)
+		logger.Fatal().Err(err).Msg(err.Error())
 	}
+	logger = logger.With().Any("db driver", driver).Logger()
+	logger.Info().Msg("initialized db driver")
 
-	logger.Info().
-		Str(log.KeyProcess, "NewPostgreSQLClient").
-		Msgf("failed migration postgres with error=%s", err.Error())
+	logger = logger.With().Str(log.KeyProcess, "initializing migration").Logger()
+	logger.Info().Msg("initializing migration")
 	migration, err := migrate.NewWithDatabaseInstance(dbConfig.MigrationPath, postgresUrl, driver)
 	if err != nil {
-		logger.Fatal().
-			Err(err).
-			Str(log.KeyProcess, "NewPostgreSQLClient").
-			Msgf("failed migration postgres with error=%s", err.Error())
+		err = fmt.Errorf("failed migration postgres with error=%w", err)
+		logger.Fatal().Err(err).Msg(err.Error())
 	}
+	logger = logger.With().Any("migration", migration).Logger()
+	logger.Info().Msg("initialized migration")
 
+	logger = logger.With().Str(log.KeyProcess, "migration down").Logger()
+	logger.Info().Msg("migration down")
 	err = migration.Down()
 	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		logger.Fatal().
-			Err(err).
-			Str(log.KeyProcess, "NewPostgreSQLClient").
-			Msgf("failed migration down postgres with error=%s", err.Error())
+		err = fmt.Errorf("failed migration down with error=%w", err)
+		logger.Fatal().Err(err).Msg(err.Error())
 	}
+	logger.Info().Msg("successed migration down")
 
+	logger = logger.With().Str(log.KeyProcess, "migration up").Logger()
+	logger.Info().Msg("migration up")
 	err = migration.Up()
 	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		logger.Fatal().
-			Err(err).
-			Str(log.KeyProcess, "NewPostgreSQLClient").
-			Msgf("failed migration up postgres with error=%s", err.Error())
+		err = fmt.Errorf("failed migration up with error=%w", err)
+		logger.Fatal().Err(err).Msg(err.Error())
 	}
+	logger.Info().Msg("successed migration up")
 
 	db.SetConnMaxLifetime(time.Minute * 15)
 	db.SetConnMaxIdleTime(time.Minute * 5)
@@ -133,8 +131,8 @@ func NewDatabaseClient(
 	db.SetMaxIdleConns(int(dbConfig.MinConnections))
 
 	logger.Info().
-		Str(log.KeyProcess, "NewPostgreSQLClient").
-		Msgf("successed connecting to database")
+		Str(log.KeyProcess, "connecting to database").
+		Msg("successed connecting to database")
 
 	return pool
 }
