@@ -49,7 +49,7 @@ func RunOrderService(c context.Context) {
 	logger = logger.With().Str(log.KeyProcess, "initializing server").Logger()
 	logger.Info().Msg("initializing server")
 	server := http.Server{
-		Addr:         fmt.Sprintf("%s:%d", "localhost", 8080),
+		Addr:         fmt.Sprintf("%s:%d", cfg.Application.Host, cfg.Application.Port),
 		BaseContext:  func(net.Listener) context.Context { return c },
 		Handler:      router,
 		ReadTimeout:  45 * time.Second,
