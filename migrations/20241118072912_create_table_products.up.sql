@@ -7,4 +7,4 @@ create table if not exists products (
     updated_at timestamp not null default current_timestamp
 );
 
-create index if not exists idx_product_name on products (product_name);
+create index if not exists idx_product_name on products (name);
