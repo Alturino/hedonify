@@ -1,5 +1,6 @@
 include:
   - ./compose.logging.yaml
+  - ./compose.dependency.yaml
 services:
   cart-service:
     develop:
@@ -163,23 +164,3 @@ services:
         loki-url: http://localhost:3100/loki/api/v1/push
         loki-retries: 5
         loki-batch-size: 1000
-  postgres:
-    container_name: postgres
-    image: postgres:16.1-alpine3.19
-    restart: always
-    env_file:
-      - .env
-    ports:
-      - ${POSTGRES_PORT}:${POSTGRES_PORT}
-    networks:
-      - postgres
-    healthcheck:
-      test:
-        ["CMD", "pg_isready", "-d", "${POSTGRES_DB}", "-U", "${POSTGRES_USER}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-networks:
-  postgres:
-    name: postgres
