@@ -16,7 +16,6 @@ COPY ./cart/ ./cart/
 COPY ./notification/ ./notification/
 COPY ./order/ ./order/
 COPY ./product/ ./product/
-COPY ./shop/ ./shop/
 COPY ./user/ ./user/
 
 RUN go build main.go
@@ -40,7 +39,6 @@ RUN touch /var/log/cart-service.log && chown -R go:go /var/log/cart-service.log
 RUN touch /var/log/notification-service.log && chown -R go:go /var/log/notification-service.log
 RUN touch /var/log/order-service.log && chown -R go:go /var/log/order-service.log
 RUN touch /var/log/product-service.log && chown -R go:go /var/log/product-service.log
-RUN touch /var/log/shop-service.log && chown -R go:go /var/log/shop-service.log
 RUN touch /var/log/user-service.log && chown -R go:go /var/log/user-service.log
 
 USER go

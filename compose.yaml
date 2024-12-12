@@ -110,33 +110,6 @@ services:
         loki-url: http://localhost:3100/loki/api/v1/push
         loki-retries: 5
         loki-batch-size: 1000
-  shop-service:
-    develop:
-      watch:
-        - path: ./internal/
-          action: rebuild
-        - path: ./cmd/
-          action: rebuild
-        - path: ./shop/
-          action: rebuild
-    build:
-      context: .
-    container_name: shop-service
-    command: ["./ecommerce", "shop"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - logging
-      - postgres
-    ports:
-      - 8084:8080
-    logging:
-      driver: loki
-      options:
-        loki-url: http://localhost:3100/loki/api/v1/push
-        loki-retries: 5
-        loki-batch-size: 1000
   user-service:
     develop:
       watch:
