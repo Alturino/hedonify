@@ -83,8 +83,8 @@ func ShutdownOtel(c context.Context, shutdownFuncs []ShutdownFunc) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := shutdown(c); err != nil {
-				err = errors.Join(err)
+			if newErr := shutdown(c); newErr != nil {
+				err = errors.Join(newErr)
 			}
 		}()
 	}
