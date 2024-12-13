@@ -29,6 +29,7 @@ func (r *iteratorForInsertCartItems) Next() bool {
 
 func (r iteratorForInsertCartItems) Values() ([]interface{}, error) {
 	return []interface{}{
+		r.rows[0].ID,
 		r.rows[0].CartID,
 		r.rows[0].ProductID,
 		r.rows[0].Quantity,
@@ -41,5 +42,5 @@ func (r iteratorForInsertCartItems) Err() error {
 }
 
 func (q *Queries) InsertCartItems(ctx context.Context, arg []InsertCartItemsParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"cart_items"}, []string{"cart_id", "product_id", "quantity", "price"}, &iteratorForInsertCartItems{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"cart_items"}, []string{"id", "cart_id", "product_id", "quantity", "price"}, &iteratorForInsertCartItems{rows: arg})
 }

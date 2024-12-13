@@ -7,12 +7,15 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rs/zerolog"
 
+	"github.com/Alturino/ecommerce/internal/common/constants"
 	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
+	"github.com/Alturino/ecommerce/internal/common/otel"
 	"github.com/Alturino/ecommerce/internal/config"
 	"github.com/Alturino/ecommerce/internal/log"
 )
 
 func VerifyToken(c context.Context, token string) error {
+	c, span := otel.Tracer.Start(c, "VerifyToken")
 	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KeyTag, "VerifyToken").
@@ -24,24 +27,24 @@ func VerifyToken(c context.Context, token string) error {
 	logger = logger.With().Str(log.KeyProcess, "initializing config").Logger()
 	logger.Info().Msg("initializing config")
 	c = logger.WithContext(c)
-	config := config.InitConfig(c, AppUserService)
+	config := config.InitConfig(c, constants.AppUserService)
 	logger.Info().Msg("initialized config")
 
 	logger = logger.With().Str(log.KeyProcess, "parsing claims").Logger()
 	jwtToken, err := jwt.ParseWithClaims(token,
 		claims,
 		func(t *jwt.Token) (interface{}, error) {
-			return config.Application.SecretKey, nil
+			return config.SecretKey, nil
 		},
-		jwt.WithAudience(AudienceUser),
+		jwt.WithAudience(constants.AudienceUser),
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}),
 		jwt.WithExpirationRequired(),
 		jwt.WithIssuedAt(),
-		jwt.WithIssuer(AppUserService),
+		jwt.WithIssuer(constants.AppUserService),
 	)
 	if err != nil {
 		err = fmt.Errorf("failed parsing with claims with error=%w", err)
-		logger.Error().Err(err).Msg(err.Error())
+		inErrors.HandleError(err, logger, span)
 		return err
 	}
 	logger = logger.With().Any(log.KeyToken, jwtToken).Logger()
@@ -50,7 +53,8 @@ func VerifyToken(c context.Context, token string) error {
 	logger = logger.With().Str(log.KeyProcess, "validating token").Logger()
 	logger.Info().Msg("validating token")
 	if !jwtToken.Valid {
-		logger.Error().Err(inErrors.ErrTokenInvalid).Msg(inErrors.ErrTokenInvalid.Error())
+		err = fmt.Errorf("failed validating token with error=%w", inErrors.ErrTokenInvalid)
+		inErrors.HandleError(err, logger, span)
 		return inErrors.ErrTokenInvalid
 	}
 	logger.Info().Msg("validated token")

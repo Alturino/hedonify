@@ -10,18 +10,18 @@ import (
 )
 
 type Cart struct {
-	ID        uuid.UUID        `json:"id"`
-	UserID    uuid.UUID        `json:"user_id"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+	ID        uuid.UUID        `db:"id" json:"id"`
+	UserID    uuid.UUID        `db:"user_id" json:"user_id"`
+	CreatedAt pgtype.Timestamp `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamp `db:"updated_at" json:"updated_at"`
 }
 
 type CartItem struct {
-	ID        uuid.UUID        `json:"id"`
-	CartID    uuid.UUID        `json:"cart_id"`
-	ProductID uuid.UUID        `json:"product_id"`
-	Quantity  int32            `json:"quantity"`
-	Price     pgtype.Numeric   `json:"price"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+	ID        uuid.UUID        `db:"id" json:"id"`
+	CartID    uuid.UUID        `db:"cart_id" json:"cart_id"`
+	ProductID uuid.UUID        `db:"product_id" json:"product_id"`
+	Quantity  int32            `db:"quantity" json:"quantity"`
+	Price     pgtype.Numeric   `db:"price" json:"price"`
+	CreatedAt pgtype.Timestamp `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamp `db:"updated_at" json:"updated_at"`
 }

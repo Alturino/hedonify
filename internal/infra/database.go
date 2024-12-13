@@ -17,14 +17,18 @@ import (
 	"github.com/rs/zerolog"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
+	"github.com/Alturino/ecommerce/internal/common/otel"
 	"github.com/Alturino/ecommerce/internal/config"
 	"github.com/Alturino/ecommerce/internal/log"
 )
 
 func NewDatabaseClient(
 	c context.Context,
-	dbConfig config.Database,
+	config config.Database,
 ) *pgxpool.Pool {
+	c, span := otel.Tracer.Start(c, "main NewDatabaseClient")
+	defer span.End()
+
 	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KeyTag, "main NewDatabaseClient").
@@ -37,11 +41,11 @@ func NewDatabaseClient(
 	logger.Info().Msg("initializing postgresUrl")
 	postgresUrl := fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
-		dbConfig.Username,
-		dbConfig.Password,
-		dbConfig.Host,
-		int(dbConfig.Port),
-		dbConfig.DbName,
+		config.Username,
+		config.Password,
+		config.Host,
+		int(config.Port),
+		config.DbName,
 	)
 	logger = logger.With().Str(log.KeyDbURL, postgresUrl).Logger()
 	logger.Info().Msg("initialized postgresUrl")
@@ -96,7 +100,7 @@ func NewDatabaseClient(
 
 	logger = logger.With().Str(log.KeyProcess, "initializing migration").Logger()
 	logger.Info().Msg("initializing migration")
-	migration, err := migrate.NewWithDatabaseInstance(dbConfig.MigrationPath, postgresUrl, driver)
+	migration, err := migrate.NewWithDatabaseInstance(config.MigrationPath, postgresUrl, driver)
 	if err != nil {
 		err = fmt.Errorf("failed migration postgres with error=%w", err)
 		logger.Fatal().Err(err).Msg(err.Error())
@@ -123,8 +127,8 @@ func NewDatabaseClient(
 
 	db.SetConnMaxLifetime(time.Minute * 15)
 	db.SetConnMaxIdleTime(time.Minute * 5)
-	db.SetMaxOpenConns(int(dbConfig.MaxConnections))
-	db.SetMaxIdleConns(int(dbConfig.MinConnections))
+	db.SetMaxOpenConns(config.MaxConnections)
+	db.SetMaxIdleConns(config.MinConnections)
 
 	logger.Info().
 		Str(log.KeyProcess, "connecting to database").

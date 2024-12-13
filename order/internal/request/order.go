@@ -2,13 +2,13 @@ package request
 
 import "github.com/google/uuid"
 
-type InsertOrderRequest struct {
-	OrderItems []OrderItemRequest `validate:"required"      json:"orderItems"`
-	CartId     uuid.UUID          `validate:"required,uuid" json:"cartId"`
-	UserId     uuid.UUID          `validate:"required,uuid" json:"userId"`
+type InsertOrder struct {
+	OrderItems []OrderItem `validate:"required"      json:"orderItems"`
+	CartId     uuid.UUID   `validate:"required,uuid" json:"cartId"`
+	UserId     uuid.UUID   `validate:"required,uuid" json:"userId"`
 }
 
-type OrderItemRequest struct {
+type OrderItem struct {
 	Price     string    `validate:"required"       json:"price"`
 	Quantity  int       `validate:"required,gte=1" json:"quantity"`
 	ProductId uuid.UUID `validate:"required,uuid"  json:"productId"`
@@ -23,6 +23,6 @@ type FindOrderById struct {
 }
 
 type FindOrders struct {
-	UserId  string
-	OrderId string
+	UserId  uuid.UUID `validate:"required,uuid"`
+	OrderId uuid.UUID `validate:"required,uuid"`
 }

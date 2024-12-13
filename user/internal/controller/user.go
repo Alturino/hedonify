@@ -11,9 +11,10 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 
-	"github.com/Alturino/ecommerce/internal/common/response"
+	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
+	inHttp "github.com/Alturino/ecommerce/internal/common/http"
 	"github.com/Alturino/ecommerce/internal/log"
-	inErrors "github.com/Alturino/ecommerce/user/internal/common/errors"
+	userErrors "github.com/Alturino/ecommerce/user/internal/common/errors"
 	inOtel "github.com/Alturino/ecommerce/user/internal/common/otel"
 	"github.com/Alturino/ecommerce/user/internal/request"
 	"github.com/Alturino/ecommerce/user/internal/service"
@@ -51,7 +52,7 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 			Err(err).
 			Str(log.KeyProcess, "validating requestbody").
 			Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -83,7 +84,7 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 			Err(err).
 			Str(log.KeyProcess, "validating requestbody").
 			Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -98,15 +99,15 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 		Str(log.KeyProcess, "login").
 		Msg("login")
 	token, err := u.service.Login(c, reqBody)
-	if err != nil && errors.Is(err, inErrors.ErrUserNotFound) {
+	if err != nil && errors.Is(err, userErrors.ErrUserNotFound) {
 		logger.Error().
-			Err(errors.Join(err, inErrors.ErrUserNotFound)).
+			Err(errors.Join(err, userErrors.ErrUserNotFound)).
 			Str(log.KeyProcess, "login").
 			Msgf("failed finding user by email=%s not found", reqBody.Email)
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
-			"message":    inErrors.ErrUserNotFound.Error(),
+			"message":    userErrors.ErrUserNotFound.Error(),
 		})
 		return
 	}
@@ -114,7 +115,7 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 		Str(log.KeyProcess, "login").
 		Msg("login success")
 
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "login success",
@@ -143,7 +144,7 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 			Err(err).
 			Str(log.KeyProcess, "validating requestbody").
 			Msgf("failed decoding request body with error=%s", err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -175,7 +176,7 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 			Err(err).
 			Str(log.KeyProcess, "validating requestbody").
 			Msgf("failed validating request body with error=%s", err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -186,16 +187,13 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 		Str(log.KeyProcess, "validating requestbody").
 		Msg("validated request body")
 
-	logger.Info().
-		Str(log.KeyProcess, "registering user").
-		Msg("registering user")
+	logger = logger.With().Str(log.KeyProcess, "registering user").Logger()
+	logger.Info().Msg("registering user")
 	user, err := u.service.Register(c, reqBody)
 	if err != nil {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "registering user").
-			Msgf("failed registering user with error=%s", err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		err = fmt.Errorf("failed registering user with error=%w", err)
+		inErrors.HandleError(err, logger, span)
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -206,7 +204,7 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 		Str(log.KeyProcess, "registering user").
 		Msg("registered user")
 
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message": fmt.Sprintf(

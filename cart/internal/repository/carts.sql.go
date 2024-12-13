@@ -13,12 +13,13 @@ import (
 )
 
 const deleteCartItemFromCartsById = `-- name: DeleteCartItemFromCartsById :one
-delete from cart_items where id = $1 and cart_id = $2 returning id, cart_id, product_id, quantity, price, created_at, updated_at
+delete from cart_items
+where id = $1 and cart_id = $2 returning id, cart_id, product_id, quantity, price, created_at, updated_at
 `
 
 type DeleteCartItemFromCartsByIdParams struct {
-	ID     uuid.UUID `json:"id"`
-	CartID uuid.UUID `json:"cart_id"`
+	ID     uuid.UUID `db:"id" json:"id"`
+	CartID uuid.UUID `db:"cart_id" json:"cart_id"`
 }
 
 func (q *Queries) DeleteCartItemFromCartsById(ctx context.Context, arg DeleteCartItemFromCartsByIdParams) (CartItem, error) {
@@ -37,37 +38,98 @@ func (q *Queries) DeleteCartItemFromCartsById(ctx context.Context, arg DeleteCar
 }
 
 const findCartById = `-- name: FindCartById :one
-select id, user_id, created_at, updated_at from carts where id = $1
+select
+    c.id, c.user_id, c.created_at, c.updated_at,
+    jsonb_agg(ci.*) as cart_items
+from carts as c
+inner join cart_items as ci on c.id = ci.cart_id
+where c.id = $1
 `
 
-func (q *Queries) FindCartById(ctx context.Context, id uuid.UUID) (Cart, error) {
+type FindCartByIdRow struct {
+	ID        uuid.UUID        `db:"id" json:"id"`
+	UserID    uuid.UUID        `db:"user_id" json:"user_id"`
+	CreatedAt pgtype.Timestamp `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamp `db:"updated_at" json:"updated_at"`
+	CartItems []byte           `db:"cart_items" json:"cart_items"`
+}
+
+func (q *Queries) FindCartById(ctx context.Context, id uuid.UUID) (FindCartByIdRow, error) {
 	row := q.db.QueryRow(ctx, findCartById, id)
-	var i Cart
+	var i FindCartByIdRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CartItems,
 	)
 	return i, err
 }
 
 const findCartByUserId = `-- name: FindCartByUserId :many
-select id, user_id, created_at, updated_at from carts where user_id = $1
+select
+    c.id, c.user_id, c.created_at, c.updated_at,
+    jsonb_agg(ci.*) as cart_items
+from carts as c
+inner join cart_items as ci on c.id = ci.cart_id
+where user_id = $1
 `
 
-func (q *Queries) FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]Cart, error) {
+type FindCartByUserIdRow struct {
+	ID        uuid.UUID        `db:"id" json:"id"`
+	UserID    uuid.UUID        `db:"user_id" json:"user_id"`
+	CreatedAt pgtype.Timestamp `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamp `db:"updated_at" json:"updated_at"`
+	CartItems []byte           `db:"cart_items" json:"cart_items"`
+}
+
+func (q *Queries) FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]FindCartByUserIdRow, error) {
 	rows, err := q.db.Query(ctx, findCartByUserId, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Cart
+	var items []FindCartByUserIdRow
 	for rows.Next() {
-		var i Cart
+		var i FindCartByUserIdRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CartItems,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findCartItemByCartId = `-- name: FindCartItemByCartId :many
+select id, cart_id, product_id, quantity, price, created_at, updated_at from cart_items
+where cart_id = $1
+`
+
+func (q *Queries) FindCartItemByCartId(ctx context.Context, cartID uuid.UUID) ([]CartItem, error) {
+	rows, err := q.db.Query(ctx, findCartItemByCartId, cartID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CartItem
+	for rows.Next() {
+		var i CartItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.CartID,
+			&i.ProductID,
+			&i.Quantity,
+			&i.Price,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -82,7 +144,8 @@ func (q *Queries) FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]Car
 }
 
 const findCartItemById = `-- name: FindCartItemById :one
-select id, cart_id, product_id, quantity, price, created_at, updated_at from cart_items where id = $1
+select id, cart_id, product_id, quantity, price, created_at, updated_at from cart_items
+where id = $1
 `
 
 func (q *Queries) FindCartItemById(ctx context.Context, id uuid.UUID) (CartItem, error) {
@@ -117,20 +180,22 @@ func (q *Queries) InsertCart(ctx context.Context, userID uuid.UUID) (Cart, error
 }
 
 const insertCartItem = `-- name: InsertCartItem :one
-insert into cart_items (cart_id, product_id, quantity, price) values (
-    $1, $2, $3, $4
+insert into cart_items (id, cart_id, product_id, quantity, price) values (
+    $1, $2, $3, $4, $5
 ) returning id, cart_id, product_id, quantity, price, created_at, updated_at
 `
 
 type InsertCartItemParams struct {
-	CartID    uuid.UUID      `json:"cart_id"`
-	ProductID uuid.UUID      `json:"product_id"`
-	Quantity  int32          `json:"quantity"`
-	Price     pgtype.Numeric `json:"price"`
+	ID        uuid.UUID      `db:"id" json:"id"`
+	CartID    uuid.UUID      `db:"cart_id" json:"cart_id"`
+	ProductID uuid.UUID      `db:"product_id" json:"product_id"`
+	Quantity  int32          `db:"quantity" json:"quantity"`
+	Price     pgtype.Numeric `db:"price" json:"price"`
 }
 
 func (q *Queries) InsertCartItem(ctx context.Context, arg InsertCartItemParams) (CartItem, error) {
 	row := q.db.QueryRow(ctx, insertCartItem,
+		arg.ID,
 		arg.CartID,
 		arg.ProductID,
 		arg.Quantity,
@@ -150,8 +215,9 @@ func (q *Queries) InsertCartItem(ctx context.Context, arg InsertCartItemParams) 
 }
 
 type InsertCartItemsParams struct {
-	CartID    uuid.UUID      `json:"cart_id"`
-	ProductID uuid.UUID      `json:"product_id"`
-	Quantity  int32          `json:"quantity"`
-	Price     pgtype.Numeric `json:"price"`
+	ID        uuid.UUID      `db:"id" json:"id"`
+	CartID    uuid.UUID      `db:"cart_id" json:"cart_id"`
+	ProductID uuid.UUID      `db:"product_id" json:"product_id"`
+	Quantity  int32          `db:"quantity" json:"quantity"`
+	Price     pgtype.Numeric `db:"price" json:"price"`
 }

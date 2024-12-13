@@ -12,11 +12,12 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/Alturino/ecommerce/internal/common"
+	"github.com/Alturino/ecommerce/internal/common/constants"
 	globalErr "github.com/Alturino/ecommerce/internal/common/errors"
+	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/config"
 	"github.com/Alturino/ecommerce/internal/log"
-	inErrors "github.com/Alturino/ecommerce/user/internal/common/errors"
+	userErrors "github.com/Alturino/ecommerce/user/internal/common/errors"
 	inOtel "github.com/Alturino/ecommerce/user/internal/common/otel"
 	"github.com/Alturino/ecommerce/user/internal/repository"
 	"github.com/Alturino/ecommerce/user/internal/request"
@@ -48,9 +49,9 @@ func (u *UserService) Login(
 	logger.Info().Msg("finding user by email")
 	user, err := u.queries.FindByEmail(c, param.Email)
 	if err != nil {
-		err = errors.Join(err, inErrors.ErrUserNotFound)
+		err = errors.Join(err, userErrors.ErrUserNotFound)
 		err = fmt.Errorf("failed finding user by email=%s with error=%w", param.Email, err)
-		logger.Error().Err(err).Msg(err.Error())
+		inErrors.HandleError(err, logger, span)
 		return "", err
 	}
 	logger.Info().Msg("found user by email")
@@ -59,9 +60,9 @@ func (u *UserService) Login(
 	logger.Info().Msg("verifying hashed password with password")
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(param.Password))
 	if err != nil {
-		err = errors.Join(err, inErrors.ErrPasswordMismatch)
+		err = errors.Join(err, userErrors.ErrPasswordMismatch)
 		err = fmt.Errorf("failed verifying hashed password and password with error=%w", err)
-		logger.Error().Err(err).Msg(err.Error())
+		inErrors.HandleError(err, logger, span)
 		return "", err
 	}
 	logger.Info().Msg("verified hashed password with password")
@@ -72,8 +73,8 @@ func (u *UserService) Login(
 	token := jwt.NewWithClaims(
 		jwt.SigningMethodHS256,
 		jwt.RegisteredClaims{
-			Audience:  jwt.ClaimStrings{common.AudienceUser},
-			Issuer:    common.AppUserService,
+			Audience:  jwt.ClaimStrings{constants.AudienceUser},
+			Issuer:    constants.AppUserService,
 			Subject:   user.ID.String(),
 			ExpiresAt: jwt.NewNumericDate(tokenCreationTime.Add(30 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(tokenCreationTime),
@@ -87,7 +88,7 @@ func (u *UserService) Login(
 	signedToken, err := token.SignedString([]byte(u.config.SecretKey))
 	if err != nil {
 		err = fmt.Errorf("failed signing token with error=%w", err)
-		logger.Error().Err(err).Msg(err.Error())
+		inErrors.HandleError(err, logger, span)
 		return "", err
 	}
 	logger.Info().Msg("signed token")
@@ -99,6 +100,9 @@ func (u *UserService) Register(
 	c context.Context,
 	param request.RegisterRequest,
 ) (repository.User, error) {
+	c, span := inOtel.Tracer.Start(c, "UserService Register")
+	defer span.End()
+
 	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KeyTag, "UserService Register").
@@ -111,7 +115,7 @@ func (u *UserService) Register(
 	if err != nil {
 		err = errors.Join(err, globalErr.ErrFailedHashToken)
 		err = fmt.Errorf("failed hashing password with error=%w", err)
-		logger.Error().Err(err).Msg(err.Error())
+		inErrors.HandleError(err, logger, span)
 		return repository.User{}, err
 	}
 	logger.Info().Msg("hashed password")
@@ -127,7 +131,7 @@ func (u *UserService) Register(
 	})
 	if err != nil {
 		err = fmt.Errorf("failed inserting user to database with error=%w", err)
-		logger.Error().Err(err).Msg(err.Error())
+		inErrors.HandleError(err, logger, span)
 		return repository.User{}, err
 	}
 	logger.Info().Msg("inserted user to database")

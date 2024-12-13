@@ -16,6 +16,25 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+  redis:
+    container_name: redis
+    image: redis:7.2.4-alpine3.19
+    restart: always
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - ./infra/redis.conf:/usr/local/etc/redis/redis.conf
+    env_file:
+      - .env
+    ports:
+      - ${REDIS_PORT}:${REDIS_PORT}
 networks:
   postgres:
     name: postgres
+  redis:
+    name: redis
