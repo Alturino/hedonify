@@ -34,7 +34,7 @@ func RunNotificationService(c context.Context) {
 	logger = logger.With().Str(log.KeyProcess, "initializing otel sdk").Logger()
 	logger.Info().Msg("initializing otel sdk")
 	c = logger.WithContext(c)
-	shutdownFuncs, err := otel.InitOtelSdk(c, common.AppNotificationService)
+	shutdownFuncs, err := otel.InitOtelSdk(c, common.AppNotificationService, cfg.Otel)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel sdk with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
@@ -68,10 +68,10 @@ func RunNotificationService(c context.Context) {
 			logger.Error().Err(err).Msg(err.Error())
 
 			logger.Info().Msg("shutting down otel")
+			c = logger.WithContext(c)
 			if err := otel.ShutdownOtel(c, shutdownFuncs); err != nil {
 				err = fmt.Errorf("failed shutting down otel with error=%w", err)
 				logger.Error().Err(err).Msg(err.Error())
-				return
 			}
 			logger.Info().Msg("shutdown otel")
 			return
@@ -82,7 +82,9 @@ func RunNotificationService(c context.Context) {
 	<-c.Done()
 	logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
 	logger.Info().Msg("received interuption signal shutting down")
+
 	logger.Info().Msg("shutting down http server")
+	c = logger.WithContext(c)
 	err = server.Shutdown(c)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down server with error=%w", err)
@@ -93,6 +95,7 @@ func RunNotificationService(c context.Context) {
 
 	logger = logger.With().Str(log.KeyProcess, "shutting down otel").Logger()
 	logger.Info().Msg("shutting down otel")
+	c = logger.WithContext(c)
 	err = otel.ShutdownOtel(c, shutdownFuncs)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down otel with error=%w", err)

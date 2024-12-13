@@ -28,23 +28,26 @@ func RunProductService(c context.Context) {
 		Str(log.KeyTag, "main RunProductService").
 		Logger()
 
+	logger = logger.With().Str(log.KeyProcess, "initializing config").Logger()
+	logger.Info().Msg("initializing config")
+	c = logger.WithContext(c)
+	cfg := config.InitConfig(c, common.AppProductService)
+	logger = logger.With().Any(log.KeyConfig, cfg).Logger()
+	logger.Info().Msg("initialized config")
+
 	logger = logger.With().Str(log.KeyProcess, "initializing otel sdk").Logger()
 	logger.Info().Msg("initializing otel sdk")
-	shutdownFuncs, err := otel.InitOtelSdk(c, common.AppProductService)
+	c = logger.WithContext(c)
+	shutdownFuncs, err := otel.InitOtelSdk(c, common.AppProductService, cfg.Otel)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel sdk with error=%w", err)
 		logger.Err(err).Msg(err.Error())
 	}
 	logger.Info().Msg("initialized otel sdk")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing config").Logger()
-	logger.Info().Msg("initializing config")
-	cfg := config.InitConfig(c, common.AppProductService)
-	logger = logger.With().Any(log.KeyConfig, cfg).Logger()
-	logger.Info().Msg("initialized config")
-
 	logger = logger.With().Str(log.KeyProcess, "initializing database").Logger()
 	logger.Info().Msg("initializing database")
+	c = logger.WithContext(c)
 	db := database.NewDatabaseClient(c, cfg.Database)
 	logger.Info().Msg("initialized database")
 
@@ -85,10 +88,12 @@ func RunProductService(c context.Context) {
 
 			err = fmt.Errorf("encounter error=%w while running server", err)
 			logger.Error().Err(err).Msg(err.Error())
+			c = logger.WithContext(c)
 			if err := otel.ShutdownOtel(c, shutdownFuncs); err != nil {
 				err = fmt.Errorf("failed shutting down otel with error=%w", err)
 				logger.Error().Err(err).Msg(err.Error())
 			}
+			return
 		}
 		logger.Info().Msg("shutdown server")
 	}()

@@ -44,7 +44,7 @@ func RunUserService(c context.Context) {
 	logger = logger.With().Str(log.KeyProcess, "initializing otel sdk").Logger()
 	logger.Info().Msg("initializing otel sdk")
 	c = logger.WithContext(c)
-	otelShutdowns, err := otel.InitOtelSdk(c, common.AppUserService)
+	otelShutdowns, err := otel.InitOtelSdk(c, common.AppUserService, cfg.Otel)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel sdk with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())

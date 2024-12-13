@@ -24,15 +24,29 @@ type Database struct {
 	Password       string `mapstructure:"password"`
 	TimeZone       string `mapstructure:"timezone"`
 	Username       string `mapstructure:"username"`
+	MaxConnections int    `mapstructure:"max_connections"`
+	MinConnections int    `mapstructure:"min_connections"`
 	Port           uint16 `mapstructure:"port"`
-	MaxConnections byte   `mapstructure:"max_connections"`
-	MinConnections byte   `mapstructure:"min_connections"`
+}
+
+type Cache struct {
+	Host     string `mapstructure:"host"`
+	Password string `mapstructure:"password"`
+	Port     uint16 `mapstructure:"port"`
+	Database int    `mapstructure:"database"`
+}
+
+type Otel struct {
+	Host string `mapstructure:"host"`
+	Port int    `mapstructure:"port"`
 }
 
 type Config struct {
 	Env         string `mapstructure:"env"`
 	Database    `mapstructure:"db"`
+	Cache       `mapstructure:"cache"`
 	Application `mapstructure:"application"`
+	Otel        `mapstructure:"otel"`
 }
 
 var (

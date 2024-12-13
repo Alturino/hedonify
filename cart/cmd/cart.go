@@ -31,6 +31,7 @@ func RunCartService(c context.Context) {
 
 	logger = logger.With().Str(log.KeyProcess, "init config").Logger()
 	logger.Info().Msg("initializing config")
+	c = logger.WithContext(c)
 	cfg := config.InitConfig(c, common.AppCartService)
 	logger = logger.With().Any(log.KeyConfig, cfg).Logger()
 	logger.Info().Msg("initialized config")
@@ -43,7 +44,8 @@ func RunCartService(c context.Context) {
 
 	logger = logger.With().Str(log.KeyProcess, "initializing otel sdk").Logger()
 	logger.Info().Msg("initializing otel sdk")
-	otelShutdowns, err := otel.InitOtelSdk(c, common.AppCartService)
+	c = logger.WithContext(c)
+	otelShutdowns, err := otel.InitOtelSdk(c, common.AppCartService, cfg.Otel)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel sdk with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
@@ -53,6 +55,7 @@ func RunCartService(c context.Context) {
 
 	logger = logger.With().Str(log.KeyProcess, "initializing database").Logger()
 	logger.Info().Msg("initializing database")
+	c = logger.WithContext(c)
 	db := database.NewDatabaseClient(c, cfg.Database)
 	logger.Info().Msg("initialized database")
 
@@ -86,6 +89,7 @@ func RunCartService(c context.Context) {
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			err = fmt.Errorf("error=%w occured while server is running", err)
 			logger.Error().Err(err).Msg(err.Error())
+			c = logger.WithContext(c)
 			if err := otel.ShutdownOtel(c, otelShutdowns); err != nil {
 				err = fmt.Errorf("failed shutting down otel with error=%w", err)
 				logger.Error().Err(err).Msg(err.Error())
@@ -101,6 +105,7 @@ func RunCartService(c context.Context) {
 	logger.Info().Msg("received interuption signal shutting down")
 
 	logger.Info().Msg("shutting down http server")
+	c = logger.WithContext(c)
 	err = server.Shutdown(c)
 	if err != nil {
 		err = fmt.Errorf("filed shutting down http server with error=%w", err)
@@ -109,6 +114,7 @@ func RunCartService(c context.Context) {
 	logger.Info().Msg("shutdown http server")
 
 	logger.Info().Msg("shutting down otel")
+	c = logger.WithContext(c)
 	err = otel.ShutdownOtel(c, otelShutdowns)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down otel with error=%w", err)

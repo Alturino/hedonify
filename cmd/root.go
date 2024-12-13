@@ -8,12 +8,14 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Alturino/ecommerce/internal/common"
 	"github.com/Alturino/ecommerce/internal/log"
 )
 
 func Start() {
 	logger := log.InitLogger("/var/log/ecommerce.log").
 		With().
+		Str(log.KeyAppName, common.MainEcommerce).
 		Str(log.KeyTag, "main Start").
 		Logger()
 

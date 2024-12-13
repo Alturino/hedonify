@@ -25,6 +25,7 @@ func RunOrderService(c context.Context) {
 
 	logger = logger.With().Str(log.KeyProcess, "initializing config").Logger()
 	logger.Info().Msg("initializing config")
+	c = logger.WithContext(c)
 	cfg := config.InitConfig(c, common.AppProductService)
 	logger = logger.With().Any(log.KeyConfig, cfg).Logger()
 	logger.Info().Msg("initialized config")
@@ -32,7 +33,7 @@ func RunOrderService(c context.Context) {
 	logger = logger.With().Str(log.KeyProcess, "initializing otel sdk").Logger()
 	logger.Info().Msg("initializing otel sdk")
 	c = logger.WithContext(c)
-	shutdownFuncs, err := otel.InitOtelSdk(c, common.AppOrderService)
+	shutdownFuncs, err := otel.InitOtelSdk(c, common.AppOrderService, cfg.Otel)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel sdk with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
@@ -64,6 +65,7 @@ func RunOrderService(c context.Context) {
 			logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
 			err = fmt.Errorf("encounter error=%w while running server", err)
 			logger.Error().Err(err).Msg(err.Error())
+			c = logger.WithContext(c)
 			if err := otel.ShutdownOtel(c, shutdownFuncs); err != nil {
 				err = fmt.Errorf("failed shutting down otel with error=%w", err)
 				logger.Error().Err(err).Msg(err.Error())
@@ -77,6 +79,7 @@ func RunOrderService(c context.Context) {
 	<-c.Done()
 	logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
 	logger.Info().Msg("received interuption signal shutting down")
+	c = logger.WithContext(c)
 	err = server.Shutdown(c)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down server with error=%w", err)
