@@ -8,50 +8,74 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Alturino/ecommerce/internal/common"
+	"github.com/Alturino/ecommerce/internal/common/constants"
+	inError "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/config"
-	database "github.com/Alturino/ecommerce/internal/infra"
+	"github.com/Alturino/ecommerce/internal/infra"
 	"github.com/Alturino/ecommerce/internal/log"
 	"github.com/Alturino/ecommerce/internal/middleware"
 	"github.com/Alturino/ecommerce/internal/otel"
+	inTrace "github.com/Alturino/ecommerce/product/internal/common/otel"
 	"github.com/Alturino/ecommerce/product/internal/controller"
 	"github.com/Alturino/ecommerce/product/internal/repository"
 	"github.com/Alturino/ecommerce/product/internal/service"
 )
 
 func RunProductService(c context.Context) {
-	logger := log.InitLogger(fmt.Sprintf("/var/log/%s.log", common.AppProductService)).
+	requestId := uuid.NewString()
+
+	c, span := inTrace.Tracer.Start(
+		c,
+		"RunProductService",
+		trace.WithAttributes(attribute.String(log.KeyRequestID, requestId)),
+	)
+	defer span.End()
+
+	logger := log.InitLogger(fmt.Sprintf("/var/log/%s.log", constants.AppProductService)).
 		With().
-		Str(log.KeyAppName, common.AppProductService).
+		Str(log.KeyAppName, constants.AppProductService).
 		Str(log.KeyTag, "main RunProductService").
+		Str(log.KeyRequestID, requestId).
 		Logger()
+
+	logger = logger.With().Str(log.KeyProcess, "initializing config").Logger()
+	logger.Info().Msg("initializing config")
+	c = logger.WithContext(c)
+	cfg := config.InitConfig(c, constants.AppProductService)
+	logger = logger.With().Any(log.KeyConfig, cfg).Logger()
+	logger.Info().Msg("initialized config")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing otel sdk").Logger()
 	logger.Info().Msg("initializing otel sdk")
-	shutdownFuncs, err := otel.InitOtelSdk(c, common.AppProductService)
+	c = logger.WithContext(c)
+	shutdownFuncs, err := otel.InitOtelSdk(c, constants.AppProductService, cfg.Otel)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel sdk with error=%w", err)
 		logger.Err(err).Msg(err.Error())
 	}
 	logger.Info().Msg("initialized otel sdk")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing config").Logger()
-	logger.Info().Msg("initializing config")
-	cfg := config.InitConfig(c, common.AppProductService)
-	logger = logger.With().Any(log.KeyConfig, cfg).Logger()
-	logger.Info().Msg("initialized config")
-
 	logger = logger.With().Str(log.KeyProcess, "initializing database").Logger()
 	logger.Info().Msg("initializing database")
-	db := database.NewDatabaseClient(c, cfg.Database)
+	c = logger.WithContext(c)
+	db := infra.NewDatabaseClient(c, cfg.Database)
 	logger.Info().Msg("initialized database")
+
+	logger = logger.With().Str(log.KeyProcess, "initializing cache").Logger()
+	logger.Info().Msg("initializing cache")
+	c = logger.WithContext(c)
+	cache := infra.NewCacheClient(c, cfg.Cache)
+	logger.Info().Msg("initialized cache")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing productService").Logger()
 	logger.Info().Msg("initializing productService")
 	queries := repository.New(db)
-	productService := service.NewProductService(queries)
+	productService := service.NewProductService(queries, cache)
 	logger.Info().Msg("initialized productService")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing router").Logger()
@@ -84,11 +108,13 @@ func RunProductService(c context.Context) {
 			logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
 
 			err = fmt.Errorf("encounter error=%w while running server", err)
-			logger.Error().Err(err).Msg(err.Error())
+			inError.HandleError(err, logger, span)
+			c = logger.WithContext(c)
 			if err := otel.ShutdownOtel(c, shutdownFuncs); err != nil {
 				err = fmt.Errorf("failed shutting down otel with error=%w", err)
-				logger.Error().Err(err).Msg(err.Error())
+				inError.HandleError(err, logger, span)
 			}
+			return
 		}
 		logger.Info().Msg("shutdown server")
 	}()
@@ -100,7 +126,7 @@ func RunProductService(c context.Context) {
 	err = server.Shutdown(c)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down server with error=%w", err)
-		logger.Error().Err(err).Msg(err.Error())
+		inError.HandleError(err, logger, span)
 	}
 	logger.Info().Msg("shutdown server")
 
@@ -109,7 +135,7 @@ func RunProductService(c context.Context) {
 	err = otel.ShutdownOtel(c, shutdownFuncs)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down otel with error=%w", err)
-		logger.Error().Err(err).Msg(err.Error())
+		inError.HandleError(err, logger, span)
 	}
 	logger.Info().Msg("shutdown otel")
 

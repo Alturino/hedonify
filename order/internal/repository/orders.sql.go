@@ -59,8 +59,8 @@ where
 `
 
 type FindOrderByIdAndUserIdParams struct {
-	Column1 interface{} `json:"column_1"`
-	Column2 interface{} `json:"column_2"`
+	Column1 interface{} `db:"column_1" json:"column_1"`
+	Column2 interface{} `db:"column_2" json:"column_2"`
 }
 
 func (q *Queries) FindOrderByIdAndUserId(ctx context.Context, arg FindOrderByIdAndUserIdParams) ([]Order, error) {
@@ -161,8 +161,8 @@ where
 `
 
 type FindOrderItemByIdAndUserIdParams struct {
-	Column1 interface{} `json:"column_1"`
-	Column2 interface{} `json:"column_2"`
+	Column1 interface{} `db:"column_1" json:"column_1"`
+	Column2 interface{} `db:"column_2" json:"column_2"`
 }
 
 func (q *Queries) FindOrderItemByIdAndUserId(ctx context.Context, arg FindOrderItemByIdAndUserIdParams) ([]OrderItem, error) {
@@ -198,8 +198,8 @@ insert into orders (id, user_id) values ($1, $2) returning id, user_id, created_
 `
 
 type InsertOrderParams struct {
-	ID     uuid.UUID `json:"id"`
-	UserID uuid.UUID `json:"user_id"`
+	ID     uuid.UUID `db:"id" json:"id"`
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
 func (q *Queries) InsertOrder(ctx context.Context, arg InsertOrderParams) (Order, error) {
@@ -215,8 +215,8 @@ func (q *Queries) InsertOrder(ctx context.Context, arg InsertOrderParams) (Order
 }
 
 type InsertOrderItemParams struct {
-	OrderID   uuid.UUID      `json:"order_id"`
-	ProductID uuid.UUID      `json:"product_id"`
-	Quantity  int32          `json:"quantity"`
-	Price     pgtype.Numeric `json:"price"`
+	OrderID   uuid.UUID      `db:"order_id" json:"order_id"`
+	ProductID uuid.UUID      `db:"product_id" json:"product_id"`
+	Quantity  int32          `db:"quantity" json:"quantity"`
+	Price     pgtype.Numeric `db:"price" json:"price"`
 }

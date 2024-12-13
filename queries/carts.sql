@@ -2,13 +2,16 @@
 insert into carts (user_id) values ($1) returning *;
 
 -- name: FindCartById :one
-select * from carts where id = $1;
+select c.*, jsonb_agg(ci.*) as cart_items from carts as c inner join cart_items as ci on c.id = ci.cart_id where c.id = $1;
 
 -- name: FindCartByUserId :many
-select * from carts where user_id = $1;
+select c.*, jsonb_agg(ci.*) as cart_items from carts as c inner join cart_items as ci on c.id = ci.cart_id where user_id = $1;
 
 -- name: FindCartItemById :one
 select * from cart_items where id = $1;
+
+-- name: FindCartItemByCartId :many
+select * from cart_items where cart_id = $1;
 
 -- name: DeleteCartItemFromCartsById :one
 delete from cart_items where id = $1 and cart_id = $2 returning *;

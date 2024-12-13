@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 
+	"github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/log"
 	"github.com/Alturino/ecommerce/order/internal/common/otel"
 	"github.com/Alturino/ecommerce/order/internal/repository"
@@ -28,7 +29,7 @@ func NewOrderService(pool *pgxpool.Pool, queries *repository.Queries) OrderServi
 
 func (s *OrderService) InsertOrder(
 	c context.Context,
-	param request.InsertOrderRequest,
+	param request.InsertOrder,
 ) (repository.Order, error) {
 	c, span := otel.Tracer.Start(c, "OrderService InsertOrder")
 	defer span.End()
@@ -43,7 +44,7 @@ func (s *OrderService) InsertOrder(
 	tx, err := s.pool.BeginTx(c, pgx.TxOptions{})
 	if err != nil {
 		err = fmt.Errorf("failed initializing transaction with error=%w", err)
-		logger.Error().Err(err).Msg(err.Error())
+		errors.HandleError(err, logger, span)
 		return repository.Order{}, err
 	}
 	logger.Info().Msg("initialized transaction")
@@ -54,7 +55,7 @@ func (s *OrderService) InsertOrder(
 		err = tx.Rollback(c)
 		if err != nil {
 			err = fmt.Errorf("failed rolling back transaction with error=%w", err)
-			logger.Error().Err(err).Msg(err.Error())
+			errors.HandleError(err, logger, span)
 			return
 		}
 		logger.Info().Msg("rolled back transaction")
@@ -70,18 +71,14 @@ func (s *OrderService) InsertOrder(
 		repository.InsertOrderParams{ID: param.CartId, UserID: param.UserId},
 	)
 	if err != nil {
-		logger.Error().Err(err).Msgf("failed inserting order request with error=%s", err.Error())
+		err = fmt.Errorf("failed inserting order request with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
 		return repository.Order{}, err
 	}
-	logger = logger.With().
-		Any(log.KeyOrder, order).
-		Logger()
+	logger = logger.With().Any(log.KeyOrder, order).Logger()
 	logger.Info().Msg("inserted order request")
 
-	logger = logger.With().
-		Str(log.KeyProcess, "inserting order item request").
-		Logger()
-
+	logger = logger.With().Str(log.KeyProcess, "inserting order item request").Logger()
 	logger.Info().Msg("inserting order item")
 	args := []repository.InsertOrderItemParams{}
 	for i, item := range param.OrderItems {
@@ -110,12 +107,20 @@ func (s *OrderService) InsertOrder(
 	insertedCount, err := s.queries.InsertOrderItem(c, args)
 	if err != nil || insertedCount <= 0 {
 		err = fmt.Errorf("failed inserting order item with error=%s", err.Error())
-		logger.Error().Err(err).Msg(err.Error())
+		errors.HandleError(err, logger, span)
 		return repository.Order{}, err
 	}
 	logger.Info().Msgf("inserted order item with count=%d", insertedCount)
-
 	logger.Info().Msg("inserted order request")
+
+	logger.Info().Msg("committing transaction")
+	err = tx.Commit(c)
+	if err != nil {
+		err = fmt.Errorf("failed committing transaction with error=%w", err)
+		errors.HandleError(err, logger, span)
+		return repository.Order{}, err
+	}
+	logger.Info().Msg("committed transaction")
 
 	return order, nil
 }
@@ -137,7 +142,7 @@ func (s *OrderService) FindOrderById(
 	order, err := s.queries.FindOrderById(c, param.OrderId)
 	if err != nil {
 		err = fmt.Errorf("failed finding order by id with error=%w", err)
-		logger.Error().Err(err).Msg(err.Error())
+		errors.HandleError(err, logger, span)
 		return response.Order{}, err
 	}
 	logger.Info().Any(log.KeyOrder, order).Msg("found order by id")
@@ -153,8 +158,7 @@ func (s *OrderService) FindOrderById(
 	repoOrderItem, err := s.queries.FindOrderItemById(c, param.OrderId)
 	if err != nil {
 		err = fmt.Errorf("failed finding order by id=%s with error=%w", param.OrderId, err)
-		logger.Error().Err(err).
-			Msg(err.Error())
+		errors.HandleError(err, logger, span)
 		return response.Order{}, err
 	}
 	logger.Info().
@@ -196,8 +200,8 @@ func (s *OrderService) FindOrders(
 		With().
 		Str(log.KeyTag, "OrderService FindOrders").
 		Str(log.KeyProcess, "finding order by userId").
-		Str(log.KeyUserID, param.UserId).
-		Str(log.KeyOrderID, param.OrderId).
+		Str(log.KeyUserID, param.UserId.String()).
+		Str(log.KeyOrderID, param.OrderId.String()).
 		Logger()
 
 	logger.Info().Msg("finding orders")
@@ -212,13 +216,10 @@ func (s *OrderService) FindOrders(
 			param.UserId,
 			err,
 		)
-		logger.Error().Err(err).
-			Msg(err.Error())
+		errors.HandleError(err, logger, span)
 		return nil, err
 	}
-	logger.Info().
-		Any(log.KeyOrders, orders).
-		Msg("found orders")
+	logger.Info().Any(log.KeyOrders, orders).Msg("found orders")
 
 	return orders, nil
 }

@@ -6,7 +6,8 @@ insert into products (name, price, quantity) values (
     $1, $2, $3
 ) returning *;
 
--- name: FindProductByIdOrName :many
-select *
-from products
-where id = $1 or name ilike '%' || $2::text || '%';
+-- name: FindProductById :one
+select * from products where id = $1;
+
+-- name: FindProducts :one
+select * from products where name like '%' | $1::text | '%' and price >= $2 and price <= $3;

@@ -7,7 +7,7 @@ import (
 
 	"github.com/Alturino/ecommerce/internal/common"
 	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
-	"github.com/Alturino/ecommerce/internal/common/response"
+	inHttp "github.com/Alturino/ecommerce/internal/common/http"
 	"github.com/Alturino/ecommerce/internal/log"
 )
 
@@ -21,7 +21,7 @@ func Auth(next http.Handler) http.Handler {
 			logger.Error().
 				Err(inErrors.ErrEmptyAuth).
 				Msg(inErrors.ErrEmptyAuth.Error())
-			response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 				"status":     "failed",
 				"statusCode": http.StatusUnauthorized,
 				"message":    inErrors.ErrEmptyAuth.Error(),
@@ -35,7 +35,7 @@ func Auth(next http.Handler) http.Handler {
 			logger.Error().
 				Err(inErrors.ErrEmptySubject).
 				Msg(inErrors.ErrEmptySubject.Error())
-			response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 				"status":     "failed",
 				"statusCode": http.StatusUnauthorized,
 				"message":    inErrors.ErrTokenInvalid.Error(),
