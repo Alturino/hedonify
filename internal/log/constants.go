@@ -14,6 +14,8 @@ const (
 	KeyEmail              = "email"
 	KeyProcess            = "process"
 	KeyProductID          = "productId"
+	KeyProducts           = "products"
+	KeyProductName        = "productName"
 	KeyRequestBody        = "requestBody"
 	KeyRequestHeader      = "requestHeader"
 	KeyRequestHost        = "host"

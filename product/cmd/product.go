@@ -12,7 +12,7 @@ import (
 
 	"github.com/Alturino/ecommerce/internal/common"
 	"github.com/Alturino/ecommerce/internal/config"
-	database "github.com/Alturino/ecommerce/internal/infra"
+	"github.com/Alturino/ecommerce/internal/infra"
 	"github.com/Alturino/ecommerce/internal/log"
 	"github.com/Alturino/ecommerce/internal/middleware"
 	"github.com/Alturino/ecommerce/internal/otel"
@@ -48,13 +48,19 @@ func RunProductService(c context.Context) {
 	logger = logger.With().Str(log.KeyProcess, "initializing database").Logger()
 	logger.Info().Msg("initializing database")
 	c = logger.WithContext(c)
-	db := database.NewDatabaseClient(c, cfg.Database)
+	db := infra.NewDatabaseClient(c, cfg.Database)
 	logger.Info().Msg("initialized database")
+
+	logger = logger.With().Str(log.KeyProcess, "initializing cache").Logger()
+	logger.Info().Msg("initializing cache")
+	c = logger.WithContext(c)
+	cache := infra.NewCacheClient(c, cfg.Cache)
+	logger.Info().Msg("initialized cache")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing productService").Logger()
 	logger.Info().Msg("initializing productService")
 	queries := repository.New(db)
-	productService := service.NewProductService(queries)
+	productService := service.NewProductService(queries, cache)
 	logger.Info().Msg("initialized productService")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing router").Logger()

@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
 	"github.com/Alturino/ecommerce/internal/log"
@@ -15,10 +18,11 @@ import (
 
 type ProductService struct {
 	queries *repository.Queries
+	cache   *redis.Client
 }
 
-func NewProductService(queries *repository.Queries) ProductService {
-	return ProductService{queries: queries}
+func NewProductService(queries *repository.Queries, cache *redis.Client) ProductService {
+	return ProductService{queries: queries, cache: cache}
 }
 
 func (p *ProductService) InsertProduct(
@@ -69,34 +73,69 @@ func (p *ProductService) InsertProduct(
 func (p *ProductService) FindProducts(
 	c context.Context,
 	param request.FindProductRequest,
-) ([]repository.Product, error) {
+) (products []repository.Product, err error) {
 	c, span := otel.Tracer.Start(c, "ProductService FindProducts")
 	defer span.End()
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyProcess, fmt.Sprintf("finding products by id=%s or name=%s", param.ID.String(), param.Name)).
 		Str(log.KeyTag, "ProductService FindProducts").
+		Str(log.KeyProductID, param.ID.String()).
+		Str(log.KeyProductName, param.Name).
 		Logger()
 
-	logger.Info().Msgf("finding products by id=%s or name=%s", param.ID.String(), param.Name)
-	products, err := p.queries.FindProductByIdOrName(
-		c,
-		repository.FindProductByIdOrNameParams{ID: param.ID, Column2: param.Name},
-	)
-	if err != nil || len(products) == 0 {
-		logger.Error().
-			Err(err).
-			Msgf("products by id=%s or name=%s not found", param.ID.String(), param.Name)
-		return nil, fmt.Errorf(
-			"products by id=%s or name=%s not found",
-			param.ID.String(),
-			param.Name,
+	logger = logger.With().Str(log.KeyProcess, "finding products in cache").Logger()
+	logger.Info().Msgf("finding products in cache")
+
+	cacheKey := fmt.Sprintf("products:%s:%s", param.ID.String(), param.Name)
+
+	cache, err := p.cache.Get(c, cacheKey).Result()
+	if err != nil {
+		err = fmt.Errorf("failed finding products in cache with error=%w", err)
+		logger.Info().Err(err).Msg(err.Error())
+
+		logger = logger.With().Str(log.KeyProcess, "finding products in database").Logger()
+		logger.Info().Msg("finding products in database")
+		products, err := p.queries.FindProductByIdOrName(
+			c,
+			repository.FindProductByIdOrNameParams{ID: param.ID, Column2: param.Name},
 		)
+		if err != nil || len(products) == 0 {
+			err = fmt.Errorf(
+				"products by id=%s or name=%s not found with error=%w",
+				param.ID.String(),
+				param.Name,
+				err,
+			)
+			logger.Error().Err(err).Msg(err.Error())
+			return nil, err
+		}
+		logger = logger.With().Any("products", products).Logger()
+		logger.Info().Msg("found products in database")
+
+		logger = logger.With().Str(log.KeyProcess, "inserting products to cache").Logger()
+		logger.Info().Msg("inserting products to cache")
+		cacheErr := p.cache.Set(c, cacheKey, products, time.Hour*6).Err()
+		err = fmt.Errorf("failed inserting products to cache with error=%w", cacheErr)
+		if err != nil {
+			logger.Error().Err(err).Msg(err.Error())
+			return nil, err
+		}
+		logger.Info().Msg("inserted products to cache")
+
+		return products, nil
 	}
-	logger.Info().
-		Any("products", products).
-		Msgf("found products by id=%s or name=%s", param.ID.String(), param.Name)
+
+	logger = logger.With().Str(log.KeyProcess, "unmarshal json").Logger()
+	logger.Info().Msg("unmarshal json")
+	err = json.Unmarshal([]byte(cache), &products)
+	if err != nil {
+		err = fmt.Errorf("failed unmarshal json with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
+		return nil, err
+	}
+	logger = logger.With().Any(log.KeyProducts, products).Logger()
+	logger.Info().Msg("success unmarshal json")
 
 	return products, nil
 }
