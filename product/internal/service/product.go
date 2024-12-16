@@ -37,15 +37,12 @@ func (p *ProductService) InsertProduct(
 		Str(log.KeyTag, "ProductService InsertProduct").
 		Logger()
 
-	logger.Info().
-		Str(log.KeyProcess, "inserting product").
-		Msg("inserting product")
+	logger = logger.With().Str(log.KeyProcess, "inserting product").Logger()
+	logger.Info().Msg("inserting product")
 	var price pgtype.Numeric
 	if err := price.Scan(param.Price); err != nil {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "inserting product").
-			Msgf("failed to insert product with error=%s", err.Error())
+		err = fmt.Errorf("failed to insert product with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
 		return repository.Product{}, err
 	}
 	product, err := p.queries.InsertProduct(
@@ -57,15 +54,20 @@ func (p *ProductService) InsertProduct(
 		},
 	)
 	if err != nil {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "inserting product").
-			Msgf("failed to insert product with error=%s", err.Error())
+		err = fmt.Errorf("failed to insert product with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
 		return repository.Product{}, err
 	}
-	logger.Info().
-		Str(log.KeyProcess, "inserting product").
-		Msg("inserted product")
+	logger.Info().Msg("inserted product")
+
+	logger = logger.With().Str(log.KeyProcess, "deleting cache").Logger()
+	logger.Info().Msg("deleting cache")
+	err = p.cache.HDel(c, "products").Err()
+	if err != nil {
+		err = fmt.Errorf("failed deleting cache with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
+	}
+	logger.Info().Msg("deleted cache")
 
 	return product, nil
 }
@@ -89,7 +91,7 @@ func (p *ProductService) FindProducts(
 
 	cacheKey := fmt.Sprintf("products:%s:%s", param.ID.String(), param.Name)
 
-	cache, err := p.cache.Get(c, cacheKey).Result()
+	cache, err := p.cache.HGet(c, cacheKey, cacheKey).Result()
 	if err != nil {
 		err = fmt.Errorf("failed finding products in cache with error=%w", err)
 		logger.Info().Err(err).Msg(err.Error())
@@ -115,7 +117,7 @@ func (p *ProductService) FindProducts(
 
 		logger = logger.With().Str(log.KeyProcess, "inserting products to cache").Logger()
 		logger.Info().Msg("inserting products to cache")
-		cacheErr := p.cache.Set(c, cacheKey, products, time.Hour*6).Err()
+		cacheErr := p.cache.HSet(c, cacheKey, products, time.Hour*6).Err()
 		err = fmt.Errorf("failed inserting products to cache with error=%w", cacheErr)
 		if err != nil {
 			logger.Error().Err(err).Msg(err.Error())
