@@ -13,7 +13,7 @@ import (
 	"github.com/Alturino/ecommerce/cart/internal/common/otel"
 	"github.com/Alturino/ecommerce/cart/internal/service"
 	"github.com/Alturino/ecommerce/cart/request"
-	"github.com/Alturino/ecommerce/internal/common/response"
+	inHttp "github.com/Alturino/ecommerce/internal/common/http"
 	"github.com/Alturino/ecommerce/internal/log"
 )
 
@@ -26,7 +26,6 @@ func AttachCartController(mux *mux.Router, service *service.CartService) {
 
 	router := mux.PathPrefix("/carts").Subrouter()
 	router.HandleFunc("/", controller.InsertCart).Methods("POST")
-	router.HandleFunc("/", controller.FindCarts).Methods("GET")
 	router.HandleFunc("/{cartId}", controller.FindCartById).Methods("GET")
 	router.HandleFunc("/{cartId}", controller.InsertCartItem).Methods("POST")
 	router.HandleFunc("/{cartId}/{cartItemId}", controller.RemoveCartItem).Methods("DELETE")
@@ -39,16 +38,14 @@ func (t *CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KeyTag, "CartController InsertCart").
-		Str(log.KeyProcess, "decoding requestbody").
 		Logger()
 
+	logger = logger.With().Str(log.KeyProcess, "decoding requestbody").Logger()
 	logger.Info().Msg("decoding requestbody")
 	reqBody := request.Cart{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "decoding requestbody").
-			Msgf("failed decoding request body with error=%s", err.Error())
+		err = fmt.Errorf("failed decoding request body with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -60,7 +57,6 @@ func (t *CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 	logger.Info().Msg("decoded request body")
 
 	logger = logger.With().Str(log.KeyProcess, "validating requestbody").Logger()
-
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
 	logger.Info().Msg("initialized validator")
@@ -79,7 +75,6 @@ func (t *CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 	logger.Info().Msg("validated request body")
 
 	logger = logger.With().Str(log.KeyProcess, "inserting cart").Logger()
-
 	logger.Info().Msg("inserting cart")
 	c = logger.WithContext(c)
 	cart, err := t.service.InsertCart(c, reqBody)
@@ -93,6 +88,7 @@ func (t *CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger.Info().Msg("inserted cart")
+
 	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
@@ -197,69 +193,6 @@ func (t *CartController) FindCartById(w http.ResponseWriter, r *http.Request) {
 		"message":    fmt.Sprintf("cartId=%s found", cartId.String()),
 		"data": map[string]interface{}{
 			"cart": cart,
-		},
-	})
-}
-
-func (t *CartController) FindCarts(w http.ResponseWriter, r *http.Request) {
-	c, span := otel.Tracer.Start(r.Context(), "CartController FindCarts")
-	defer span.End()
-
-	logger := zerolog.Ctx(c).
-		With().
-		Str(log.KeyTag, "CartController FindCarts").
-		Logger()
-
-	logger.Info().
-		Str(log.KeyProcess, "get query params").
-		Msg("get query params")
-	productId, userId := r.URL.Query().Get("productId"), r.URL.Query().Get("userId")
-	logger = logger.With().
-		Str(log.KeyProcess, "get query params").
-		Str(log.KeyProductID, productId).
-		Str(log.KeyUserID, userId).
-		Logger()
-
-	logger.Info().
-		Str(log.KeyProcess, "finding carts").
-		Msgf("validating userId=%s is valid uuid", userId)
-	userUUID, err := uuid.Parse(userId)
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "finding carts").
-			Msgf("userId=%s is not valid uuid", userId)
-	}
-	logger.Info().
-		Str(log.KeyProcess, "finding carts").
-		Msgf("validated userId=%s is valid uuid", userId)
-
-	logger.Info().
-		Str(log.KeyProcess, "finding carts").
-		Msg("finding carts")
-	carts, err := t.service.FindCartByUserId(c, userUUID)
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "finding carts").
-			Msg(err.Error())
-		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
-			"status":     "failed",
-			"statusCode": http.StatusBadRequest,
-			"message":    err.Error(),
-		})
-		return
-	}
-	logger.Info().
-		Str(log.KeyProcess, "finding carts").
-		Any("carts", carts).
-		Msg("found carts")
-
-	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
-		"status":     "success",
-		"statusCode": http.StatusOK,
-		"data": map[string]interface{}{
-			"carts": carts,
 		},
 	})
 }

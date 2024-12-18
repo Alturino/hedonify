@@ -13,6 +13,7 @@ const (
 	KeyConfig             = "config"
 	KeyEmail              = "email"
 	KeyProcess            = "process"
+	KeyCacheKey           = "cacheKey"
 	KeyProductID          = "productId"
 	KeyProducts           = "products"
 	KeyProduct            = "product"

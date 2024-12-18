@@ -37,39 +37,57 @@ func (q *Queries) DeleteCartItemFromCartsById(ctx context.Context, arg DeleteCar
 }
 
 const findCartById = `-- name: FindCartById :one
-select id, user_id, created_at, updated_at from carts where id = $1
+select c.id, c.user_id, c.created_at, c.updated_at, jsonb_agg(ci.*) as cart_items from carts as c inner join cart_items as ci on c.id = ci.cart_id where c.id = $1
 `
 
-func (q *Queries) FindCartById(ctx context.Context, id uuid.UUID) (Cart, error) {
+type FindCartByIdRow struct {
+	ID        uuid.UUID        `json:"id"`
+	UserID    uuid.UUID        `json:"user_id"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+	CartItems []byte           `json:"cart_items"`
+}
+
+func (q *Queries) FindCartById(ctx context.Context, id uuid.UUID) (FindCartByIdRow, error) {
 	row := q.db.QueryRow(ctx, findCartById, id)
-	var i Cart
+	var i FindCartByIdRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CartItems,
 	)
 	return i, err
 }
 
 const findCartByUserId = `-- name: FindCartByUserId :many
-select id, user_id, created_at, updated_at from carts where user_id = $1
+select c.id, c.user_id, c.created_at, c.updated_at, jsonb_agg(ci.*) as cart_items from carts as c inner join cart_items as ci on c.id = ci.cart_id where user_id = $1
 `
 
-func (q *Queries) FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]Cart, error) {
+type FindCartByUserIdRow struct {
+	ID        uuid.UUID        `json:"id"`
+	UserID    uuid.UUID        `json:"user_id"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+	CartItems []byte           `json:"cart_items"`
+}
+
+func (q *Queries) FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]FindCartByUserIdRow, error) {
 	rows, err := q.db.Query(ctx, findCartByUserId, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Cart
+	var items []FindCartByUserIdRow
 	for rows.Next() {
-		var i Cart
+		var i FindCartByUserIdRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CartItems,
 		); err != nil {
 			return nil, err
 		}
