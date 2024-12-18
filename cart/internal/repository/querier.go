@@ -14,6 +14,7 @@ type Querier interface {
 	DeleteCartItemFromCartsById(ctx context.Context, arg DeleteCartItemFromCartsByIdParams) (CartItem, error)
 	FindCartById(ctx context.Context, id uuid.UUID) (Cart, error)
 	FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]Cart, error)
+	FindCartItemByCartId(ctx context.Context, cartID uuid.UUID) ([]CartItem, error)
 	FindCartItemById(ctx context.Context, id uuid.UUID) (CartItem, error)
 	InsertCart(ctx context.Context, userID uuid.UUID) (Cart, error)
 	InsertCartItem(ctx context.Context, arg InsertCartItemParams) (CartItem, error)

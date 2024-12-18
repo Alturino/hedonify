@@ -51,7 +51,7 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 			Err(err).
 			Str(log.KeyProcess, "validating requestbody").
 			Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -83,7 +83,7 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 			Err(err).
 			Str(log.KeyProcess, "validating requestbody").
 			Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -103,7 +103,7 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 			Err(errors.Join(err, inErrors.ErrUserNotFound)).
 			Str(log.KeyProcess, "login").
 			Msgf("failed finding user by email=%s not found", reqBody.Email)
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    inErrors.ErrUserNotFound.Error(),
@@ -114,7 +114,7 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 		Str(log.KeyProcess, "login").
 		Msg("login success")
 
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "login success",
@@ -143,7 +143,7 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 			Err(err).
 			Str(log.KeyProcess, "validating requestbody").
 			Msgf("failed decoding request body with error=%s", err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -175,7 +175,7 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 			Err(err).
 			Str(log.KeyProcess, "validating requestbody").
 			Msgf("failed validating request body with error=%s", err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -195,7 +195,7 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 			Err(err).
 			Str(log.KeyProcess, "registering user").
 			Msgf("failed registering user with error=%s", err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -206,7 +206,7 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 		Str(log.KeyProcess, "registering user").
 		Msg("registered user")
 
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message": fmt.Sprintf(

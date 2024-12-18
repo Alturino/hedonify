@@ -2,24 +2,29 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 
 	"github.com/Alturino/ecommerce/cart/internal/common/otel"
 	"github.com/Alturino/ecommerce/cart/internal/repository"
 	"github.com/Alturino/ecommerce/cart/request"
+	"github.com/Alturino/ecommerce/cart/response"
 	"github.com/Alturino/ecommerce/internal/log"
 )
 
 type CartService struct {
 	pool    *pgxpool.Pool
 	queries *repository.Queries
+	cache   *redis.Client
 }
 
 func NewCartService(pool *pgxpool.Pool, queries *repository.Queries) CartService {
@@ -28,7 +33,7 @@ func NewCartService(pool *pgxpool.Pool, queries *repository.Queries) CartService
 
 func (s *CartService) InsertCart(
 	c context.Context,
-	param request.InsertCart,
+	param request.Cart,
 ) (repository.Cart, error) {
 	c, span := otel.Tracer.Start(c, "CartService InsertCart")
 	defer span.End()
@@ -158,7 +163,7 @@ func (s *CartService) InsertCartItem(
 func (s *CartService) FindCartById(
 	c context.Context,
 	cartId uuid.UUID,
-) (repository.Cart, error) {
+) (result response.Cart, err error) {
 	c, span := otel.Tracer.Start(c, "CartService FindCartById")
 	defer span.End()
 
@@ -167,54 +172,170 @@ func (s *CartService) FindCartById(
 		Str(log.KeyTag, "CartService FindCartById").
 		Logger()
 
-	logger.Info().
-		Str(log.KeyProcess, "finding cart").
-		Msg("finding cart")
-	cart, err := s.queries.FindCartById(c, cartId)
-	if err != nil {
-		err = fmt.Errorf("cartId=%s not found", cartId.String())
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "finding cart").
-			Msgf("failed finding cart by id=%s with error=%s", cartId, err.Error())
-		return repository.Cart{}, err
-	}
-	logger.Info().
-		Str(log.KeyProcess, "finding cart").
-		Msgf("found cart by id=%s", cartId)
+	cacheKey := fmt.Sprintf("carts:%s", cartId.String())
 
-	return cart, nil
+	logger = logger.With().Str(log.KeyProcess, "finding cart").Logger()
+	logger.Info().Msgf("finding cart id=%s in cache", cartId.String())
+	cache, err := s.cache.JSONGet(c, cacheKey, "$").Result()
+	if err != nil {
+		err = fmt.Errorf("failed finding cart id=%s in cache with error=%w", cartId.String(), err)
+		logger.Info().Err(err).Msg(err.Error())
+
+		logger.Info().Msg("initializing transaction")
+		tx, err := s.pool.BeginTx(c, pgx.TxOptions{})
+		if err != nil {
+			err = fmt.Errorf("failed begin transaction with error=%w", err)
+			logger.Error().Err(err).Msg(err.Error())
+			return response.Cart{}, err
+		}
+		logger.Info().Msg("initialized transaction")
+		defer func(lg zerolog.Logger) {
+			lg = lg.With().Str(log.KeyProcess, "rolling back transaction").Logger()
+
+			lg.Info().Msg("rolling back transaction")
+			err = tx.Rollback(c)
+			if err != nil {
+				err = fmt.Errorf("failed rolling back transaction with error=%w", err)
+				lg.Info().Err(err).Msg(err.Error())
+				return
+			}
+			lg.Info().Msg("rolled back transaction")
+		}(logger)
+
+		logger.Info().Msgf("finding cart id=%s in database", cartId.String())
+		cart, err := s.queries.WithTx(tx).FindCartById(c, cartId)
+		if err != nil {
+			err = fmt.Errorf("cart id=%s not found with error=%w", cartId.String(), err)
+			logger.Error().Err(err).Str(log.KeyProcess, "finding cart").Msg(err.Error())
+			return result, err
+		}
+		logger = logger.With().Any(log.KeyCart, cart).Logger()
+		logger.Info().Msgf("found cart id=%s in database", cartId.String())
+
+		logger.Info().Msgf("finding cartItems with cartId=%s in database", cartId.String())
+		cartItems, err := s.queries.WithTx(tx).FindCartItemByCartId(c, cartId)
+		if err != nil {
+			err = fmt.Errorf(
+				"cartItems with cartId=%s not found with error=%w",
+				cartId.String(),
+				err,
+			)
+			logger.Error().Err(err).Str(log.KeyProcess, "finding cart").Msg(err.Error())
+			return result, err
+		}
+		logger = logger.With().Any(log.KeyCartItems, cartItems).Logger()
+		resCartItems := make([]response.CartItem, len(cartItems))
+		for _, item := range cartItems {
+			resCartItems = append(resCartItems, response.CartItem{
+				ID:        item.ID,
+				CartID:    item.CartID,
+				ProductID: item.ProductID,
+				Quantity:  item.Quantity,
+				Price:     decimal.NewFromBigInt(item.Price.Int, item.Price.Exp).String(),
+				CreatedAt: item.CreatedAt.Time,
+				UpdatedAt: item.UpdatedAt.Time,
+			})
+		}
+		logger.Info().Msgf("found cartItems cartId=%s in database", cartId.String())
+
+		result = response.Cart{
+			ID:        cart.ID,
+			UserID:    cart.UserID,
+			CartItems: resCartItems,
+			CreatedAt: cart.CreatedAt.Time,
+			UpdatedAt: cart.UpdatedAt.Time,
+		}
+
+		logger.Info().Msgf("inserting cart id=%s to cache", cartId.String())
+		err = s.cache.Set(c, cacheKey, result, time.Hour*3).Err()
+		if err != nil {
+			err = fmt.Errorf(
+				"failed inserting cart id=%s to cache with error=%w",
+				cartId.String(),
+				err,
+			)
+			logger.Error().Err(err).Msg(err.Error())
+			return response.Cart{}, err
+		}
+		return result, nil
+	}
+	logger.Info().Msgf("found cart id=%s in cache", cartId.String())
+
+	logger.Info().Msg("unmarshal cache")
+	err = json.Unmarshal([]byte(cache), &result)
+	if err != nil {
+		err = fmt.Errorf("failed unmarshal cache with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
+		return
+	}
+	return result, nil
 }
 
 func (s *CartService) FindCartByUserId(
 	c context.Context,
 	userId uuid.UUID,
 ) ([]repository.Cart, error) {
-	c, span := otel.Tracer.Start(c, "CartService FindCartByUserIdOrProductId")
+	c, span := otel.Tracer.Start(c, "CartService FindCartByUserId")
 	defer span.End()
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "CartService FindCartByUserIdOrProductId").
+		Str(log.KeyTag, "CartService FindCartByUserId").
 		Logger()
 
-	logger.Info().
-		Str(log.KeyProcess, "finding cart").
-		Msg("finding cart")
-	cart, err := s.queries.FindCartByUserId(c, userId)
+	logger = logger.With().Str(log.KeyProcess, "finding cart").Logger()
+	logger.Info().Msgf("finding cart with userId=%s in cache", userId.String())
+	cacheKey := fmt.Sprintf("carts:user_id:%s", userId.String())
+	cache, err := s.cache.Get(c, cacheKey).Result()
 	if err != nil {
-		err = fmt.Errorf("cart with userId=%s not found", userId.String())
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "finding cart").
-			Msgf("failed finding cart by userId=%s with error=%s", userId, err.Error())
+		err = fmt.Errorf(
+			"failed find cart with userId=%s in cache with error=%w",
+			userId.String(),
+			err,
+		)
+		logger.Info().Err(err).Msg(err.Error())
+
+		carts, err := s.queries.FindCartByUserId(c, userId)
+		if err != nil {
+			err = fmt.Errorf("cart with userId=%s not found with error=%w", userId.String(), err)
+			logger.Error().Err(err).Msg(err.Error())
+			return nil, err
+		}
+		logger.Info().Msgf("found cart with userId=%s", userId.String())
+
+		json, err := json.Marshal(carts)
+		if err != nil {
+			err = fmt.Errorf("failed marshal carts with error=%w", err)
+			logger.Error().Err(err).Msg(err.Error())
+			return nil, err
+		}
+		err = s.cache.Set(c, cacheKey, json, time.Hour*3).Err()
+		if err != nil {
+			err = fmt.Errorf(
+				"failed inserting carts with userId=%s with error=%w",
+				userId.String(),
+				err,
+			)
+			logger.Error().Err(err).Msg(err.Error())
+			return nil, err
+		}
+
+		return carts, nil
+	}
+	logger.Info().Msgf("found cart with userId=%s in cache", userId.String())
+
+	logger = logger.With().Str(log.KeyProcess, "unmarshaling cache").Logger()
+	logger.Info().Msg("unmarshaling cache")
+	result := []repository.Cart{}
+	err = json.Unmarshal([]byte(cache), &result)
+	if err != nil {
+		err = fmt.Errorf("failed unmarshaling cache with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
 		return nil, err
 	}
-	logger.Info().
-		Str(log.KeyProcess, "finding cart").
-		Msgf("failed finding cart by userId=%s with error=%s", userId, err.Error())
+	logger.Info().Msg("unmarshaled cache")
 
-	return cart, nil
+	return result, nil
 }
 
 func (s *CartService) RemoveCartItem(c context.Context, param request.RemoveCartItem) error {

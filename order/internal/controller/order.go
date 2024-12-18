@@ -48,7 +48,7 @@ func (s *OrderController) InsertOrder(w http.ResponseWriter, r *http.Request) {
 		logger.Error().Err(err).
 			Str(log.KeyProcess, "decoding requestBody").
 			Msgf("failed decoding request body with error=%s", err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -76,7 +76,7 @@ func (s *OrderController) InsertOrder(w http.ResponseWriter, r *http.Request) {
 		logger.Error().Err(err).
 			Str(log.KeyProcess, "validating requestBody").
 			Msgf("failed validating request body with error=%s", err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -101,7 +101,7 @@ func (s *OrderController) InsertOrder(w http.ResponseWriter, r *http.Request) {
 		logger.Error().Err(err).
 			Str(log.KeyProcess, "inserting cart").
 			Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -111,7 +111,7 @@ func (s *OrderController) InsertOrder(w http.ResponseWriter, r *http.Request) {
 	logger.Info().
 		Str(log.KeyProcess, "inserting cart").
 		Msg("inserted cart")
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "successfully inserted cart",
@@ -141,7 +141,7 @@ func (s *OrderController) FindOrderById(w http.ResponseWriter, r *http.Request) 
 	orders, err := s.service.FindOrderById(c, request.FindOrderById{OrderId: orderId})
 	if err != nil {
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    fmt.Sprintf("order with id=%s and not found", orderId.String()),
@@ -150,7 +150,7 @@ func (s *OrderController) FindOrderById(w http.ResponseWriter, r *http.Request) 
 	}
 	logger.Info().Any(log.KeyOrders, orders).Msg("found orders")
 
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "found orders",
@@ -179,7 +179,7 @@ func (s *OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	logger.Info().Msg("finding orders")
 	orders, err := s.service.FindOrders(c, request.FindOrders{OrderId: orderId, UserId: userId})
 	if err != nil {
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    fmt.Sprintf("order with id=%s and userId=%s not found", orderId, userId),
@@ -188,7 +188,7 @@ func (s *OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	}
 	logger.Info().Any(log.KeyOrders, orders).Msg("found orders")
 
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "found orders",

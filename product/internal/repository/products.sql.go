@@ -12,42 +12,46 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const findProductByIdOrName = `-- name: FindProductByIdOrName :many
-select id, name, price, quantity, created_at, updated_at
-from products
-where id = $1 or name ilike '%' || $2::text || '%'
+const findProductById = `-- name: FindProductById :one
+select id, name, price, quantity, created_at, updated_at from products where id = $1
 `
 
-type FindProductByIdOrNameParams struct {
-	ID      uuid.UUID `json:"id"`
-	Column2 string    `json:"column_2"`
+func (q *Queries) FindProductById(ctx context.Context, id uuid.UUID) (Product, error) {
+	row := q.db.QueryRow(ctx, findProductById, id)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Price,
+		&i.Quantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
-func (q *Queries) FindProductByIdOrName(ctx context.Context, arg FindProductByIdOrNameParams) ([]Product, error) {
-	rows, err := q.db.Query(ctx, findProductByIdOrName, arg.ID, arg.Column2)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Product
-	for rows.Next() {
-		var i Product
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Price,
-			&i.Quantity,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+const findProducts = `-- name: FindProducts :one
+select id, name, price, quantity, created_at, updated_at from products where name like '%' | $1::text | '%' and price >= $2 and price <= $3
+`
+
+type FindProductsParams struct {
+	Column1 string         `json:"column_1"`
+	Price   pgtype.Numeric `json:"price"`
+	Price_2 pgtype.Numeric `json:"price_2"`
+}
+
+func (q *Queries) FindProducts(ctx context.Context, arg FindProductsParams) (Product, error) {
+	row := q.db.QueryRow(ctx, findProducts, arg.Column1, arg.Price, arg.Price_2)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Price,
+		&i.Quantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getProducts = `-- name: GetProducts :many

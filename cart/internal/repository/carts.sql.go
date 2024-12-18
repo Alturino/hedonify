@@ -81,6 +81,38 @@ func (q *Queries) FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]Car
 	return items, nil
 }
 
+const findCartItemByCartId = `-- name: FindCartItemByCartId :many
+select id, cart_id, product_id, quantity, price, created_at, updated_at from cart_items where cart_id = $1
+`
+
+func (q *Queries) FindCartItemByCartId(ctx context.Context, cartID uuid.UUID) ([]CartItem, error) {
+	rows, err := q.db.Query(ctx, findCartItemByCartId, cartID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CartItem
+	for rows.Next() {
+		var i CartItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.CartID,
+			&i.ProductID,
+			&i.Quantity,
+			&i.Price,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findCartItemById = `-- name: FindCartItemById :one
 select id, cart_id, product_id, quantity, price, created_at, updated_at from cart_items where id = $1
 `

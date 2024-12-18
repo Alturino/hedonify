@@ -10,8 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 
-	"github.com/Alturino/ecommerce/internal/common"
-	"github.com/Alturino/ecommerce/internal/common/response"
+	inHttp "github.com/Alturino/ecommerce/internal/common/http"
 	"github.com/Alturino/ecommerce/internal/log"
 	"github.com/Alturino/ecommerce/product/internal/common/otel"
 	"github.com/Alturino/ecommerce/product/internal/service"
@@ -27,6 +26,7 @@ func AttachProductController(mux *mux.Router, service *service.ProductService) {
 
 	router := mux.NewRoute().Subrouter()
 	router.HandleFunc("/products", controller.InsertProduct).Methods("POST")
+	router.HandleFunc("/products/{productId}", controller.FindProductById).Methods("GET")
 	router.HandleFunc("/products", controller.FindProducts).Methods("GET")
 }
 
@@ -41,11 +41,11 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 
 	logger = logger.With().Str(log.KeyProcess, "decoding request body").Logger()
 	logger.Info().Msg("decoding request body")
-	reqBody := request.InsertProductRequest{}
+	reqBody := request.Product{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -64,7 +64,7 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -80,7 +80,7 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		err = fmt.Errorf("failed inserting product with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -89,7 +89,7 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 	}
 	logger.Info().Msg("inserted product")
 
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "successfully inserted product",
@@ -108,38 +108,38 @@ func (p ProductController) FindProducts(w http.ResponseWriter, r *http.Request) 
 		Str(log.KeyTag, "ProductController FindProducts").
 		Logger()
 
+	logger = logger.With().Str(log.KeyProcess, "get query params").Logger()
+	logger.Info().Msg("get query params")
+	name := r.URL.Query().Get("name")
+	minPrice := r.URL.Query().Get("minPrice")
+	maxPrice := r.URL.Query().Get("maxPrice")
+	logger = logger.With().
+		Str(log.KeyProductName, name).
+		Str(log.KeyMinPrice, minPrice).
+		Str(log.KeyMaxPrice, maxPrice).
+		Logger()
+	logger.Info().Msg("get query params")
+
 	logger = logger.With().Str(log.KeyProcess, "validating query params").Logger()
 	logger.Info().Msg("validating query params")
-	id, err := uuid.Parse(r.URL.Query().Get("id"))
+	req := request.FindProduct{Name: name, MinPrice: minPrice, MaxPrice: maxPrice}
+	validate := validator.New(validator.WithRequiredStructEnabled())
+	err := validate.StructCtx(c, req)
 	if err != nil {
-		err = fmt.Errorf("failed parsing uuid with error=%w", err)
+		err = fmt.Errorf("failed validating query params with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
-			"status":     "failed",
-			"statusCode": http.StatusBadRequest,
-			"message":    "id is not valid uuid",
-		})
 		return
 	}
-	name := r.URL.Query().Get("name")
-	logger = logger.With().
-		Str(common.QueryParamID, id.String()).
-		Str(common.QueryParamName, name).
-		Logger()
 	logger.Info().Msg("validated query params")
 
 	logger = logger.With().Str(log.KeyProcess, "finding products").Logger()
 	logger.Info().Msg("finding products")
-	products, err := p.service.FindProducts(c, request.FindProductRequest{ID: id, Name: name})
+	c = logger.WithContext(c)
+	products, err := p.service.FindProducts(c, req)
 	if err != nil {
-		err = fmt.Errorf(
-			"failed finding products with id=%s and name=%s with error=%w",
-			id.String(),
-			name,
-			err,
-		)
+		err = fmt.Errorf("failed finding products with name=%s with error=%w", name, err)
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -147,13 +147,61 @@ func (p ProductController) FindProducts(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	logger = logger.With().Any(log.KeyProducts, products).Logger()
-	logger.Info().Msgf("found products by id=%s or name=%s", id, name)
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	logger.Info().Msgf("found products name=%s", name)
+
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
-		"message":    fmt.Sprintf("products by id=%s or name=%s found", id, name),
+		"message":    fmt.Sprintf("products or name=%s found", name),
 		"data": map[string]interface{}{
 			"products": products,
+		},
+	})
+}
+
+func (p ProductController) FindProductById(w http.ResponseWriter, r *http.Request) {
+	c, span := otel.Tracer.Start(r.Context(), "ProductController FindProductById")
+	defer span.End()
+
+	logger := zerolog.Ctx(c).
+		With().
+		Str(log.KeyTag, "ProductController FindProductById").
+		Logger()
+
+	logger = logger.With().Str(log.KeyProcess, "get product id").Logger()
+	logger.Info().Msg("get product id")
+	id, err := uuid.Parse(r.URL.Query().Get("productId"))
+	if err != nil {
+		err = fmt.Errorf("failed get product id with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
+		return
+	}
+	logger = logger.With().Str(log.KeyProductID, id.String()).Logger()
+	logger.Info().Msgf("got product id=%s", id.String())
+
+	logger = logger.With().Str(log.KeyProcess, "finding product").Logger()
+	logger.Info().Msg("finding product")
+	c = logger.WithContext(c)
+	product, err := p.service.FindProductById(c, id)
+	if err != nil {
+		err = fmt.Errorf("failed finding product with id=%s with error=%w", id.String(), err)
+		logger.Error().Err(err).Msg(err.Error())
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			"status":     "failed",
+			"statusCode": http.StatusBadRequest,
+			"message":    err.Error(),
+		})
+		return
+	}
+	logger = logger.With().Any(log.KeyProduct, product).Logger()
+	logger.Info().Msgf("found product id=%s", id.String())
+
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		"status":     "success",
+		"statusCode": http.StatusOK,
+		"message":    fmt.Sprintf("product id=%s found", id.String()),
+		"data": map[string]interface{}{
+			"product": product,
 		},
 	})
 }

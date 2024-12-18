@@ -15,6 +15,7 @@ const (
 	KeyProcess            = "process"
 	KeyProductID          = "productId"
 	KeyProducts           = "products"
+	KeyProduct            = "product"
 	KeyProductName        = "productName"
 	KeyRequestBody        = "requestBody"
 	KeyRequestHeader      = "requestHeader"
@@ -30,4 +31,6 @@ const (
 	KeyUserID             = "userId"
 	KeyOrderID            = "orderId"
 	KeyDbURL              = "dbURL"
+	KeyMinPrice           = "minPrice"
+	KeyMaxPrice           = "maxPrice"
 )

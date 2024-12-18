@@ -43,13 +43,13 @@ func (t *CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 		Logger()
 
 	logger.Info().Msg("decoding requestbody")
-	reqBody := request.InsertCart{}
+	reqBody := request.Cart{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		logger.Error().
 			Err(err).
 			Str(log.KeyProcess, "decoding requestbody").
 			Msgf("failed decoding request body with error=%s", err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -69,7 +69,7 @@ func (t *CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%w", err)
 		logger.Error().Err(err).Str(log.KeyProcess, "validating requestbody").Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -85,7 +85,7 @@ func (t *CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 	cart, err := t.service.InsertCart(c, reqBody)
 	if err != nil {
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -93,7 +93,7 @@ func (t *CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger.Info().Msg("inserted cart")
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "successfully inserted cart",
@@ -119,7 +119,7 @@ func (t *CartController) InsertCartItem(w http.ResponseWriter, r *http.Request) 
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -136,11 +136,11 @@ func (t *CartController) InsertCartItem(w http.ResponseWriter, r *http.Request) 
 
 	logger = logger.With().Any(log.KeyProcess, "validating request body").Logger()
 	logger.Info().Msg("validating request body")
-	cart := request.InsertCart{}
+	cart := request.Cart{}
 	if err := validate.StructCtx(c, cart); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%s", err.Error())
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -181,7 +181,7 @@ func (t *CartController) FindCartById(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err = fmt.Errorf("failed finding cartId=%s with error=%w", cartId.String(), err)
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -191,7 +191,7 @@ func (t *CartController) FindCartById(w http.ResponseWriter, r *http.Request) {
 	logger = logger.With().Any(log.KeyCart, cart).Logger()
 	logger.Info().Msgf("found cartId=%s", cartId.String())
 
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    fmt.Sprintf("cartId=%s found", cartId.String()),
@@ -243,7 +243,7 @@ func (t *CartController) FindCarts(w http.ResponseWriter, r *http.Request) {
 			Err(err).
 			Str(log.KeyProcess, "finding carts").
 			Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -255,7 +255,7 @@ func (t *CartController) FindCarts(w http.ResponseWriter, r *http.Request) {
 		Any("carts", carts).
 		Msg("found carts")
 
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"data": map[string]interface{}{
@@ -279,7 +279,7 @@ func (t *CartController) RemoveCartItem(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		err = fmt.Errorf("failed validating cartId=%s with error=%w", cartId.String(), err)
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -295,7 +295,7 @@ func (t *CartController) RemoveCartItem(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		err = fmt.Errorf("failed validating cartItemId=%s with error=%w", cartId.String(), err)
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -317,7 +317,7 @@ func (t *CartController) RemoveCartItem(w http.ResponseWriter, r *http.Request) 
 			err,
 		)
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusInternalServerError,
 			"message":    err.Error(),
