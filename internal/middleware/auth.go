@@ -7,7 +7,7 @@ import (
 
 	"github.com/Alturino/ecommerce/internal/common"
 	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
-	"github.com/Alturino/ecommerce/internal/common/response"
+	inHttp "github.com/Alturino/ecommerce/internal/common/http"
 	"github.com/Alturino/ecommerce/internal/log"
 )
 

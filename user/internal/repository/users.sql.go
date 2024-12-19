@@ -36,11 +36,11 @@ insert into users (username, email, password, created_at, updated_at) values (
 `
 
 type InsertUserParams struct {
-	Username  string           `json:"username"`
-	Email     string           `json:"email"`
-	Password  string           `json:"password"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+	Username  string           `db:"username" json:"username"`
+	Email     string           `db:"email" json:"email"`
+	Password  string           `db:"password" json:"password"`
+	CreatedAt pgtype.Timestamp `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamp `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {

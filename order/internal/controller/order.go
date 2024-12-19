@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 
-	"github.com/Alturino/ecommerce/internal/common/response"
+	inHttp "github.com/Alturino/ecommerce/internal/common/http"
 	"github.com/Alturino/ecommerce/internal/log"
 	"github.com/Alturino/ecommerce/order/internal/common/otel"
 	"github.com/Alturino/ecommerce/order/internal/request"
@@ -43,7 +43,7 @@ func (s *OrderController) InsertOrder(w http.ResponseWriter, r *http.Request) {
 	logger.Info().
 		Str(log.KeyProcess, "decoding requestBody").
 		Msg("decoding requestBody")
-	reqBody := request.InsertOrderRequest{}
+	reqBody := request.InsertOrder{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		logger.Error().Err(err).
 			Str(log.KeyProcess, "decoding requestBody").

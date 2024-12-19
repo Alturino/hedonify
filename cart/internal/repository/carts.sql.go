@@ -17,8 +17,8 @@ delete from cart_items where id = $1 and cart_id = $2 returning id, cart_id, pro
 `
 
 type DeleteCartItemFromCartsByIdParams struct {
-	ID     uuid.UUID `json:"id"`
-	CartID uuid.UUID `json:"cart_id"`
+	ID     uuid.UUID `db:"id" json:"id"`
+	CartID uuid.UUID `db:"cart_id" json:"cart_id"`
 }
 
 func (q *Queries) DeleteCartItemFromCartsById(ctx context.Context, arg DeleteCartItemFromCartsByIdParams) (CartItem, error) {
@@ -41,11 +41,11 @@ select c.id, c.user_id, c.created_at, c.updated_at, jsonb_agg(ci.*) as cart_item
 `
 
 type FindCartByIdRow struct {
-	ID        uuid.UUID        `json:"id"`
-	UserID    uuid.UUID        `json:"user_id"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
-	CartItems []byte           `json:"cart_items"`
+	ID        uuid.UUID        `db:"id" json:"id"`
+	UserID    uuid.UUID        `db:"user_id" json:"user_id"`
+	CreatedAt pgtype.Timestamp `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamp `db:"updated_at" json:"updated_at"`
+	CartItems []byte           `db:"cart_items" json:"cart_items"`
 }
 
 func (q *Queries) FindCartById(ctx context.Context, id uuid.UUID) (FindCartByIdRow, error) {
@@ -66,11 +66,11 @@ select c.id, c.user_id, c.created_at, c.updated_at, jsonb_agg(ci.*) as cart_item
 `
 
 type FindCartByUserIdRow struct {
-	ID        uuid.UUID        `json:"id"`
-	UserID    uuid.UUID        `json:"user_id"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
-	CartItems []byte           `json:"cart_items"`
+	ID        uuid.UUID        `db:"id" json:"id"`
+	UserID    uuid.UUID        `db:"user_id" json:"user_id"`
+	CreatedAt pgtype.Timestamp `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamp `db:"updated_at" json:"updated_at"`
+	CartItems []byte           `db:"cart_items" json:"cart_items"`
 }
 
 func (q *Queries) FindCartByUserId(ctx context.Context, userID uuid.UUID) ([]FindCartByUserIdRow, error) {
@@ -173,10 +173,10 @@ insert into cart_items (cart_id, product_id, quantity, price) values (
 `
 
 type InsertCartItemParams struct {
-	CartID    uuid.UUID      `json:"cart_id"`
-	ProductID uuid.UUID      `json:"product_id"`
-	Quantity  int32          `json:"quantity"`
-	Price     pgtype.Numeric `json:"price"`
+	CartID    uuid.UUID      `db:"cart_id" json:"cart_id"`
+	ProductID uuid.UUID      `db:"product_id" json:"product_id"`
+	Quantity  int32          `db:"quantity" json:"quantity"`
+	Price     pgtype.Numeric `db:"price" json:"price"`
 }
 
 func (q *Queries) InsertCartItem(ctx context.Context, arg InsertCartItemParams) (CartItem, error) {
@@ -200,8 +200,8 @@ func (q *Queries) InsertCartItem(ctx context.Context, arg InsertCartItemParams) 
 }
 
 type InsertCartItemsParams struct {
-	CartID    uuid.UUID      `json:"cart_id"`
-	ProductID uuid.UUID      `json:"product_id"`
-	Quantity  int32          `json:"quantity"`
-	Price     pgtype.Numeric `json:"price"`
+	CartID    uuid.UUID      `db:"cart_id" json:"cart_id"`
+	ProductID uuid.UUID      `db:"product_id" json:"product_id"`
+	Quantity  int32          `db:"quantity" json:"quantity"`
+	Price     pgtype.Numeric `db:"price" json:"price"`
 }

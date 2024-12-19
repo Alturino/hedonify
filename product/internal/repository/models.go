@@ -10,10 +10,10 @@ import (
 )
 
 type Product struct {
-	ID        uuid.UUID        `json:"id"`
-	Name      string           `json:"name"`
-	Price     pgtype.Numeric   `json:"price"`
-	Quantity  int32            `json:"quantity"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+	ID        uuid.UUID        `db:"id" json:"id"`
+	Name      string           `db:"name" json:"name"`
+	Price     pgtype.Numeric   `db:"price" json:"price"`
+	Quantity  int32            `db:"quantity" json:"quantity"`
+	CreatedAt pgtype.Timestamp `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamp `db:"updated_at" json:"updated_at"`
 }

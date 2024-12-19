@@ -35,9 +35,9 @@ select id, name, price, quantity, created_at, updated_at from products where nam
 `
 
 type FindProductsParams struct {
-	Column1 string         `json:"column_1"`
-	Price   pgtype.Numeric `json:"price"`
-	Price_2 pgtype.Numeric `json:"price_2"`
+	Column1 string         `db:"column_1" json:"column_1"`
+	Price   pgtype.Numeric `db:"price" json:"price"`
+	Price_2 pgtype.Numeric `db:"price_2" json:"price_2"`
 }
 
 func (q *Queries) FindProducts(ctx context.Context, arg FindProductsParams) (Product, error) {
@@ -92,9 +92,9 @@ insert into products (name, price, quantity) values (
 `
 
 type InsertProductParams struct {
-	Name     string         `json:"name"`
-	Price    pgtype.Numeric `json:"price"`
-	Quantity int32          `json:"quantity"`
+	Name     string         `db:"name" json:"name"`
+	Price    pgtype.Numeric `db:"price" json:"price"`
+	Quantity int32          `db:"quantity" json:"quantity"`
 }
 
 func (q *Queries) InsertProduct(ctx context.Context, arg InsertProductParams) (Product, error) {

@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/Alturino/ecommerce/cart/internal/common/otel"
 	"github.com/Alturino/ecommerce/cart/internal/service"
@@ -160,6 +161,7 @@ func (t *CartController) FindCartById(w http.ResponseWriter, r *http.Request) {
 
 	logger.Info().Msg("validating uuid")
 	cartId, err := uuid.Parse(r.PathValue("cartId"))
+	span.SetAttributes(attribute.String(log.KeyCartID, cartId.String()))
 	if err != nil {
 		err = fmt.Errorf("failed validating cartId=%s with error=%w", cartId.String(), err)
 		logger.Error().Err(err).Msg(err.Error())

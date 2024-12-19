@@ -11,7 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 
-	"github.com/Alturino/ecommerce/internal/common/response"
+	inHttp "github.com/Alturino/ecommerce/internal/common/http"
 	"github.com/Alturino/ecommerce/internal/log"
 	inErrors "github.com/Alturino/ecommerce/user/internal/common/errors"
 	inOtel "github.com/Alturino/ecommerce/user/internal/common/otel"

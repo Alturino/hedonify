@@ -28,7 +28,7 @@ func NewOrderService(pool *pgxpool.Pool, queries *repository.Queries) OrderServi
 
 func (s *OrderService) InsertOrder(
 	c context.Context,
-	param request.InsertOrderRequest,
+	param request.InsertOrder,
 ) (repository.Order, error) {
 	c, span := otel.Tracer.Start(c, "OrderService InsertOrder")
 	defer span.End()
@@ -73,15 +73,10 @@ func (s *OrderService) InsertOrder(
 		logger.Error().Err(err).Msgf("failed inserting order request with error=%s", err.Error())
 		return repository.Order{}, err
 	}
-	logger = logger.With().
-		Any(log.KeyOrder, order).
-		Logger()
+	logger = logger.With().Any(log.KeyOrder, order).Logger()
 	logger.Info().Msg("inserted order request")
 
-	logger = logger.With().
-		Str(log.KeyProcess, "inserting order item request").
-		Logger()
-
+	logger = logger.With().Str(log.KeyProcess, "inserting order item request").Logger()
 	logger.Info().Msg("inserting order item")
 	args := []repository.InsertOrderItemParams{}
 	for i, item := range param.OrderItems {
@@ -114,8 +109,16 @@ func (s *OrderService) InsertOrder(
 		return repository.Order{}, err
 	}
 	logger.Info().Msgf("inserted order item with count=%d", insertedCount)
-
 	logger.Info().Msg("inserted order request")
+
+	logger.Info().Msg("committing transaction")
+	err = tx.Commit(c)
+	if err != nil {
+		err = fmt.Errorf("failed committing transaction with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
+		return repository.Order{}, err
+	}
+	logger.Info().Msg("committed transaction")
 
 	return order, nil
 }
@@ -212,8 +215,7 @@ func (s *OrderService) FindOrders(
 			param.UserId,
 			err,
 		)
-		logger.Error().Err(err).
-			Msg(err.Error())
+		logger.Error().Err(err).Msg(err.Error())
 		return nil, err
 	}
 	logger.Info().
