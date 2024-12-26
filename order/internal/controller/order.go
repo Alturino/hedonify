@@ -27,9 +27,9 @@ func AttachOrderController(mux *mux.Router, service *service.OrderService) {
 
 	controller := OrderController{service: service}
 
-	router.HandleFunc("/", controller.FindOrders).Methods("GET")
-	router.HandleFunc("/", controller.InsertOrder).Methods("POST")
-	router.HandleFunc("/{orderId}", controller.FindOrderById).Methods("GET")
+	router.HandleFunc(, ).Methods(http.MethodGet)
+	router.HandleFunc(, ).Methods(http.MethodPost)
+	router.HandleFunc(, ).Methods(http.MethodGet)
 }
 
 func (s *OrderController) InsertOrder(w http.ResponseWriter, r *http.Request) {

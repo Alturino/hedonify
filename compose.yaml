@@ -22,6 +22,7 @@ services:
       - logging
       - postgres
       - redis
+      - product-service
     ports:
       - 8080:8080
     logging:
@@ -142,3 +143,8 @@ services:
         loki-url: http://localhost:3100/loki/api/v1/push
         loki-retries: 5
         loki-batch-size: 1000
+networks:
+  product-service:
+    name: product-service
+  cart-service:
+    name: cart-service

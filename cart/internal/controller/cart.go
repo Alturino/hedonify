@@ -27,10 +27,11 @@ func AttachCartController(mux *mux.Router, service *service.CartService) {
 	controller := CartController{service: service}
 
 	router := mux.PathPrefix("/carts").Subrouter()
-	router.HandleFunc("/", controller.InsertCart).Methods("POST")
-	router.HandleFunc("/{cartId}", controller.FindCartById).Methods("GET")
-	router.HandleFunc("/{cartId}", controller.InsertCartItem).Methods("POST")
-	router.HandleFunc("/{cartId}/{cartItemId}", controller.RemoveCartItem).Methods("DELETE")
+	router.HandleFunc("/", controller.InsertCart).Methods(http.MethodPost)
+	router.HandleFunc("/{cartId}", controller.FindCartById).Methods(http.MethodGet)
+	router.HandleFunc("/{cartId}", controller.InsertCartItem).Methods(http.MethodPost)
+	router.HandleFunc("/{cartId}/{cartItemId}", controller.RemoveCartItem).
+		Methods(http.MethodDelete)
 }
 
 func (t *CartController) InsertCart(w http.ResponseWriter, r *http.Request) {

@@ -15,6 +15,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Alturino/ecommerce/cart/internal/common/cache"
 	"github.com/Alturino/ecommerce/cart/internal/common/otel"
@@ -30,14 +32,16 @@ type CartService struct {
 	pool    *pgxpool.Pool
 	queries *repository.Queries
 	cache   *redis.Client
+	http    *http.Client
 }
 
 func NewCartService(
 	pool *pgxpool.Pool,
 	queries *repository.Queries,
 	cache *redis.Client,
+	http *http.Client,
 ) CartService {
-	return CartService{pool: pool, queries: queries, cache: cache}
+	return CartService{pool: pool, queries: queries, cache: cache, http: http}
 }
 
 func (svc *CartService) InsertCart(
@@ -89,11 +93,25 @@ func (svc *CartService) InsertCart(
 	logger.Info().Msg("inserting cart item")
 	args := []repository.InsertCartItemsParams{}
 	var wg sync.WaitGroup
-	for _, item := range param.CartItems {
+	var mutex sync.Mutex
+	for i, item := range param.CartItems {
 		wg.Add(1)
-		go func() {
+		go func(c context.Context) {
+			c, span := otel.Tracer.Start(
+				c,
+				fmt.Sprintf("CartService InsertCart goroutine=%d", i),
+				trace.WithAttributes(attribute.Int("goroutine=%d", i)),
+			)
+			defer span.End()
+
+			mutex.Lock()
+			defer mutex.Unlock()
 			defer wg.Done()
-			logger = logger.With().Str(log.KeyProductID, item.ProductId.String()).Logger()
+
+			logger = logger.With().
+				Str(log.KeyProductID, item.ProductId.String()).
+				Int("goroutine", i).
+				Logger()
 			logger.Info().Msg("validating cart item price")
 			price, err := decimal.NewFromString(item.Price)
 			if err != nil {
@@ -103,24 +121,41 @@ func (svc *CartService) InsertCart(
 			}
 			logger.Info().Msg("validated cart item price")
 
-			logger.Info().Msg("checking productId=%s exist")
+			logger.Info().Msgf("checking productId=%s exist", item.ProductId.String())
+			logger.Info().
+				Msgf("creating request to product-service checking productId=%s exist", item.ProductId.String())
 			c = logger.WithContext(c)
 			req, err := http.NewRequestWithContext(
 				c,
-				"GET",
+				http.MethodGet,
 				fmt.Sprintf(inHttp.PRODUCT_BASE_URL+"/%s", item.ProductId.String()),
 				nil,
 			)
-			if err != nil || req.Response.StatusCode != http.StatusOK {
+			if err != nil {
 				err = fmt.Errorf(
-					"failed checking productId=%s exist with error=%w",
+					"failed creating request to product-service checking productId=%s exist with error=%w",
 					item.ProductId.String(),
 					err,
 				)
-				logger.Error().Err(err).Msg(err.Error())
+				errors.HandleError(err, logger, span)
 				return
 			}
-			logger.Info().Msgf("checking productId=%s exist", item.ProductId.String())
+			logger.Info().
+				Msgf("created request to product-service checking productId=%s exist", item.ProductId.String())
+
+			logger.Info().
+				Msgf("sending request to product-service checking productId=%s exist", item.ProductId.String())
+			res, err := svc.http.Do(req)
+			if err != nil || res.StatusCode != http.StatusOK {
+				err = fmt.Errorf(
+					"failed sending request to product-service checking productId=%s exist with error=%w",
+					item.ProductId.String(),
+					err,
+				)
+				errors.HandleError(err, logger, span)
+				return
+			}
+			logger.Info().Msgf("productId=%s exist", item.ProductId.String())
 
 			args = append(
 				args,
@@ -138,8 +173,9 @@ func (svc *CartService) InsertCart(
 					},
 				},
 			)
-		}()
+		}(c)
 	}
+	wg.Wait()
 	insertedCount, err := svc.queries.InsertCartItems(c, args)
 	if err != nil || insertedCount <= 0 {
 		err = fmt.Errorf("failed inserting cart item with error=%w", err)

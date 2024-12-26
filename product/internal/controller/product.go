@@ -27,11 +27,11 @@ func AttachProductController(mux *mux.Router, service *service.ProductService) {
 	controller := ProductController{service}
 
 	router := mux.NewRoute().Subrouter()
-	router.HandleFunc("/products", controller.FindProducts).Methods("GET")
-	router.HandleFunc("/products", controller.InsertProduct).Methods("POST")
-	router.HandleFunc("/products/{productId}", controller.FindProductById).Methods("GET")
-	router.HandleFunc("/products/{productId}", controller.RemoveProduct).Methods("DELETE")
-	router.HandleFunc("/products/{productId}", controller.UpdateProduct).Methods("PUT")
+	router.HandleFunc("/products", controller.FindProducts).Methods(http.MethodGet)
+	router.HandleFunc("/products", controller.InsertProduct).Methods(http.MethodPost)
+	router.HandleFunc("/products/{productId}", controller.FindProductById).Methods(http.MethodGet)
+	router.HandleFunc("/products/{productId}", controller.RemoveProduct).Methods(http.MethodDelete)
+	router.HandleFunc("/products/{productId}", controller.UpdateProduct).Methods(http.MethodPut)
 }
 
 func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request) {

@@ -82,7 +82,8 @@ func RunCartService(c context.Context) {
 	logger = logger.With().Str(log.KeyProcess, "initializing cart service").Logger()
 	logger.Info().Msg("initializing cart service")
 	queries := repository.New(db)
-	cartService := service.NewCartService(db, queries, cache)
+	httpClient := http.Client{Timeout: 5 * time.Second}
+	cartService := service.NewCartService(db, queries, cache, &httpClient)
 	logger.Info().Msg("initialized cart service")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing cart controller").Logger()

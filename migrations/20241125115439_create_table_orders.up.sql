@@ -1,3 +1,7 @@
+create type order_status as enum (
+    'PROCESSING', 'COMPLETED', 'EXPIRED', 'CANCELLED'
+);
+
 create table if not exists orders (
     id uuid primary key not null default (gen_random_uuid()),
     user_id uuid not null references users (id),
@@ -14,8 +18,4 @@ create table if not exists order_items (
     price numeric not null,
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp
-);
-
-create type order_status as enum (
-    'PROCESSING', 'COMPLETED', 'EXPIRED', 'CANCELLED'
 );

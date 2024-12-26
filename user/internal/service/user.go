@@ -13,7 +13,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/Alturino/ecommerce/internal/common/constants"
-	globalErr "github.com/Alturino/ecommerce/internal/common/errors"
 	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/config"
 	"github.com/Alturino/ecommerce/internal/log"
@@ -113,7 +112,7 @@ func (u *UserService) Register(
 	logger.Info().Msg("hashing password")
 	hashed, err := bcrypt.GenerateFromPassword([]byte(param.Password), bcrypt.DefaultCost)
 	if err != nil {
-		err = errors.Join(err, globalErr.ErrFailedHashToken)
+		err = errors.Join(err, inErrors.ErrFailedHashToken)
 		err = fmt.Errorf("failed hashing password with error=%w", err)
 		inErrors.HandleError(err, logger, span)
 		return repository.User{}, err
@@ -126,8 +125,8 @@ func (u *UserService) Register(
 		Username:  param.Username,
 		Email:     param.Email,
 		Password:  string(hashed),
-		CreatedAt: pgtype.Timestamp{Time: time.Now()},
-		UpdatedAt: pgtype.Timestamp{Time: time.Now()},
+		CreatedAt: pgtype.Timestamp{Time: time.Now(), InfinityModifier: pgtype.Finite, Valid: true},
+		UpdatedAt: pgtype.Timestamp{Time: time.Now(), InfinityModifier: pgtype.Finite, Valid: true},
 	})
 	if err != nil {
 		err = fmt.Errorf("failed inserting user to database with error=%w", err)

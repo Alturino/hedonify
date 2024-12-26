@@ -28,8 +28,8 @@ func AttachUserController(c context.Context, mux *mux.Router, service *service.U
 	router := mux.PathPrefix("/users").Subrouter()
 
 	controller := UserController{service: service}
-	router.HandleFunc("/login", controller.Login).Methods("POST")
-	router.HandleFunc("/register", controller.Register).Methods("POST")
+	router.HandleFunc("/login", controller.Login).Methods(http.MethodPost)
+	router.HandleFunc("/register", controller.Register).Methods(http.MethodPost)
 }
 
 func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
