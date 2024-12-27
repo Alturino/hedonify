@@ -174,7 +174,7 @@ func (p ProductController) FindProductById(w http.ResponseWriter, r *http.Reques
 
 	logger = logger.With().Str(log.KeyProcess, "get product id").Logger()
 	logger.Info().Msg("get product id")
-	id, err := uuid.Parse(r.URL.Query().Get("productId"))
+	id, err := uuid.Parse(r.PathValue("productId"))
 	if err != nil {
 		err = fmt.Errorf("failed get product id with error=%w", err)
 		inErrors.HandleError(err, logger, span)

@@ -1,3 +1,4 @@
+drop type if exists order_status;
 create type order_status as enum (
     'PROCESSING', 'COMPLETED', 'EXPIRED', 'CANCELLED'
 );

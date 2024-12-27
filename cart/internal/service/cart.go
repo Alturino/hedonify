@@ -124,13 +124,21 @@ func (svc *CartService) InsertCart(
 			logger.Info().Msgf("checking productId=%s exist", item.ProductId.String())
 			logger.Info().
 				Msgf("creating request to product-service checking productId=%s exist", item.ProductId.String())
-			c = logger.WithContext(c)
 			req, err := http.NewRequestWithContext(
 				c,
 				http.MethodGet,
 				fmt.Sprintf(inHttp.PRODUCT_BASE_URL+"/%s", item.ProductId.String()),
 				nil,
 			)
+			defer func() {
+				logger.Info().Msg("closing request body")
+				err := req.Body.Close()
+				if err != nil {
+					err = fmt.Errorf("failed closing request body with error=%w", err)
+					logger.Error().Err(err).Msg(err.Error())
+				}
+				logger.Info().Msg("closed request body")
+			}()
 			if err != nil {
 				err = fmt.Errorf(
 					"failed creating request to product-service checking productId=%s exist with error=%w",

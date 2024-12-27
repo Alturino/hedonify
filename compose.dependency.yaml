@@ -1,7 +1,7 @@
 services:
   postgres:
     container_name: postgres
-    image: postgres:16.1-alpine3.19
+    image: postgres:16.6-alpine3.21
     restart: always
     env_file:
       - .env
@@ -18,17 +18,18 @@ services:
       start_period: 20s
   redis:
     container_name: redis
-    image: redis:7.2.4-alpine3.19
+    image: redis/redis-stack:6.2.6-v17
     restart: always
-    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     healthcheck:
       test: ["CMD", "redis-cli", "PING"]
       interval: 5s
       timeout: 5s
       retries: 5
       start_period: 20s
-    volumes:
-      - ./infra/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - redis
+    environment:
+      REDIS_ARGS: "--user ${REDIS_USER} on +@all ~* >${REDIS_PASSWORD}  --bind 0.0.0.0 --maxmemory-policy allkeys-lru"
     env_file:
       - .env
     ports:

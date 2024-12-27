@@ -7,10 +7,10 @@ accept: application/json
 content-type: application/json
 
 {
-  "userId": "6f15dd30-1fdf-4557-a4fb-edbe9654b9b9",
+  "userId": "e1366ad0-aa2d-4119-8b9e-c8a9be29378c",
   "cartItems": [
     {
-      "productId": "71fdec2c-d3d7-47ee-bfda-d9c9211bc7e7",
+      "productId": "1551f6d1-4fa4-4159-93e0-a9c91da53c99",
       "quantity": 3,
       "price": "12.345"
     }

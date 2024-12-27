@@ -53,5 +53,16 @@ func NewCacheClient(
 	}
 	logger.Info().Msg("initialized redis otel metric")
 
+	logger = logger.With().Str(log.KeyProcess, "pinging connection to redis").Logger()
+	logger.Info().Msg("pinging connection to redis")
+	err = redis.Ping(c).Err()
+	if err != nil {
+		err = fmt.Errorf("failed to pinging to redis with error=%w", err)
+		logger.Fatal().Err(err).Msg(err.Error())
+	}
+	logger.Info().Msg("pinged connection to redis")
+
+	logger.Info().Msg("initialized cache")
+
 	return redis
 }
