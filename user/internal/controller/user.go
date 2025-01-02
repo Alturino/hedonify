@@ -8,11 +8,12 @@ import (
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 
-	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
-	inHttp "github.com/Alturino/ecommerce/internal/common/http"
+	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
+	commonHttp "github.com/Alturino/ecommerce/internal/common/http"
 	"github.com/Alturino/ecommerce/internal/log"
 	userErrors "github.com/Alturino/ecommerce/user/internal/common/errors"
 	inOtel "github.com/Alturino/ecommerce/user/internal/common/otel"
@@ -30,6 +31,7 @@ func AttachUserController(c context.Context, mux *mux.Router, service *service.U
 	controller := UserController{service: service}
 	router.HandleFunc("/login", controller.Login).Methods(http.MethodPost)
 	router.HandleFunc("/register", controller.Register).Methods(http.MethodPost)
+	router.HandleFunc("/{userId}", controller.FindUserById).Methods(http.MethodGet)
 }
 
 func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
@@ -40,82 +42,58 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 		With().
 		Str(log.KeyTag, "UserController Login").
 		Logger()
-	c = logger.WithContext(c)
 
-	logger.Info().
-		Str(log.KeyProcess, "validating requestbody").
-		Msg("decoding request body")
+	logger = logger.With().Str(log.KeyProcess, "decoding requestbody").Logger()
+	logger.Info().Msg("decoding request body")
 	reqBody := request.LoginRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%s", err.Error())
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "validating requestbody").
-			Msg(err.Error())
-		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		commonErrors.HandleError(err, logger, span)
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
 		})
 		return
 	}
-	logger = logger.With().
-		Any(log.KeyRequestBody, reqBody).
-		Logger()
-	c = logger.WithContext(c)
-	logger.Info().
-		Str(log.KeyProcess, "validating requestbody").
-		Msg("decoded request body")
+	logger = logger.With().Any(log.KeyRequestBody, reqBody).Logger()
+	logger.Info().Msg("decoded request body")
 
-	logger.Info().
-		Str(log.KeyProcess, "validating requestbody").
-		Msg("initializing validator")
+	logger = logger.With().Str(log.KeyProcess, "validating requestbody").Logger()
+	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
-	logger.Info().
-		Str(log.KeyProcess, "validating requestbody").
-		Msg("initialized validator")
+	logger.Info().Msg("initialized validator")
 
-	logger.Info().
-		Str(log.KeyProcess, "validating requestbody").
-		Msg("validating request body")
+	logger.Info().Msg("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%s", err.Error())
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "validating requestbody").
-			Msg(err.Error())
-		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		commonErrors.HandleError(err, logger, span)
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
 		})
 		return
 	}
-	logger.Info().
-		Str(log.KeyProcess, "validating requestbody").
-		Msg("validated request body")
+	logger.Info().Msg("validated request body")
 
-	logger.Info().
-		Str(log.KeyProcess, "login").
-		Msg("login")
+	logger = logger.With().Str(log.KeyProcess, "login").Logger()
+	logger.Info().Msg("login")
 	token, err := u.service.Login(c, reqBody)
 	if err != nil && errors.Is(err, userErrors.ErrUserNotFound) {
-		logger.Error().
-			Err(errors.Join(err, userErrors.ErrUserNotFound)).
-			Str(log.KeyProcess, "login").
-			Msgf("failed finding user by email=%s not found", reqBody.Email)
-		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		err = errors.Join(err, userErrors.ErrUserNotFound)
+		err = fmt.Errorf("failed login with error=%w", err)
+		commonErrors.HandleError(err, logger, span)
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    userErrors.ErrUserNotFound.Error(),
 		})
 		return
 	}
-	logger.Info().
-		Str(log.KeyProcess, "login").
-		Msg("login success")
+	logger.Info().Msg("login success")
 
-	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "login success",
@@ -133,78 +111,60 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 		With().
 		Str(log.KeyTag, "UserController Register").
 		Logger()
-	c = logger.WithContext(c)
 
-	logger.Info().
-		Str(log.KeyProcess, "validating requestbody").
-		Msg("decoding request body")
-	reqBody := request.RegisterRequest{}
+	logger = logger.With().Str(log.KeyProcess, "decoding request body").Logger()
+	logger.Info().Msg("decoding request body")
+	reqBody := request.Register{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		logger.Error().
 			Err(err).
 			Str(log.KeyProcess, "validating requestbody").
 			Msgf("failed decoding request body with error=%s", err.Error())
-		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
 		})
 		return
 	}
-	logger = logger.With().
-		Any(log.KeyRequestBody, reqBody).
-		Logger()
-	c = logger.WithContext(r.Context())
-	logger.Info().
-		Str(log.KeyProcess, "validating requestbody").
-		Msg("decoded request body")
+	logger = logger.With().Any(log.KeyRequestBody, reqBody).Logger()
+	logger.Info().Msg("decoded request body")
 
-	logger.Info().
-		Str(log.KeyProcess, "validating requestbody").
-		Msg("initializing validator")
+	logger = logger.With().Str(log.KeyProcess, "validating request body").Logger()
+	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
-	logger.Info().
-		Str(log.KeyProcess, "validating requestbody").
-		Msg("initialized validator")
+	logger.Info().Msg("initialized validator")
 
-	logger.Info().
-		Str(log.KeyProcess, "validating requestbody").
-		Msg("validating request body")
+	logger.Info().Msg("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil &&
 		errors.Is(err, &validator.InvalidValidationError{}) {
-		logger.Error().
-			Err(err).
-			Str(log.KeyProcess, "validating requestbody").
-			Msgf("failed validating request body with error=%s", err.Error())
-		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		err = fmt.Errorf("failed validating request body with error=%w", err)
+		commonErrors.HandleError(err, logger, span)
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
 		})
 		return
 	}
-	logger.Info().
-		Str(log.KeyProcess, "validating requestbody").
-		Msg("validated request body")
+	logger.Info().Msg("validated request body")
 
 	logger = logger.With().Str(log.KeyProcess, "registering user").Logger()
 	logger.Info().Msg("registering user")
 	user, err := u.service.Register(c, reqBody)
 	if err != nil {
 		err = fmt.Errorf("failed registering user with error=%w", err)
-		inErrors.HandleError(err, logger, span)
-		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		commonErrors.HandleError(err, logger, span)
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
 		})
 		return
 	}
-	logger.Info().
-		Str(log.KeyProcess, "registering user").
-		Msg("registered user")
+	logger.Info().Msg("registered user")
 
-	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message": fmt.Sprintf(
@@ -212,5 +172,52 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 			user.Username,
 			user.Email,
 		),
+	})
+}
+
+func (u UserController) FindUserById(w http.ResponseWriter, r *http.Request) {
+	c, span := inOtel.Tracer.Start(r.Context(), "UserController FindUserById")
+	defer span.End()
+
+	logger := zerolog.Ctx(r.Context()).
+		With().
+		Str(log.KeyTag, "UserController Register").
+		Logger()
+
+	logger = logger.With().Str(log.KeyProcess, "get userId from path").Logger()
+	logger.Info().Msg("get userId from path")
+	userId, err := uuid.Parse(r.PathValue("userId"))
+	if err != nil {
+		err = fmt.Errorf("failed parsing userId with error=%w", err)
+		commonErrors.HandleError(err, logger, span)
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			"status":     "failed",
+			"statusCode": http.StatusBadRequest,
+			"message":    err.Error(),
+		})
+	}
+	logger = logger.With().Str(log.KeyUserID, userId.String()).Logger()
+	logger.Info().Msg("parsed userId from path")
+
+	logger = logger.With().Str(log.KeyProcess, "finding user by id").Logger()
+	logger.Info().Msg("finding user by id")
+	c = logger.WithContext(c)
+	user, err := u.service.FindUserById(c, request.FindUserById{ID: userId})
+	if err != nil {
+		err = fmt.Errorf("failed finding user by id with error=%w", err)
+		commonErrors.HandleError(err, logger, span)
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			"status":     "failed",
+			"statusCode": http.StatusBadRequest,
+			"message":    err.Error(),
+		})
+	}
+	logger = logger.With().Any(log.KeyUser, user).Logger()
+	logger.Info().Msg("found user by id")
+
+	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		"status":     "success",
+		"statusCode": http.StatusOK,
+		"message":    fmt.Sprintf("user with id=%s is found", user.ID.String()),
 	})
 }

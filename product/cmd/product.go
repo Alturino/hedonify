@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -81,7 +82,7 @@ func RunProductService(c context.Context) {
 	logger = logger.With().Str(log.KeyProcess, "initializing router").Logger()
 	logger.Info().Msg("initializing router")
 	mux := mux.NewRouter()
-	mux.Use(middleware.Logging)
+	mux.Use(otelmux.Middleware(constants.AppProductService), middleware.Logging, middleware.Auth)
 	logger.Info().Msg("initialized router")
 
 	logger = logger.With().Str(log.KeyProcess, "attach product controller").Logger()
@@ -95,8 +96,8 @@ func RunProductService(c context.Context) {
 		Addr:         fmt.Sprintf("%s:%d", cfg.Application.Host, cfg.Application.Port),
 		BaseContext:  func(net.Listener) context.Context { return c },
 		Handler:      mux,
-		ReadTimeout:  45 * time.Second,
-		WriteTimeout: 45 * time.Second,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
 	}
 	logger.Info().Msg("initialized server")
 

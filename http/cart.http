@@ -1,16 +1,17 @@
 @base=http://localhost:8080/carts
+@token=a
 
 # @name InsertCart
 ###
 POST {{base}}/ HTTP/1.1
 accept: application/json
 content-type: application/json
+Authorization: Bearer {{token}}
 
 {
-  "userId": "e1366ad0-aa2d-4119-8b9e-c8a9be29378c",
   "cartItems": [
     {
-      "productId": "1551f6d1-4fa4-4159-93e0-a9c91da53c99",
+      "productId": "00495402-8426-492d-82a3-84ea577db197",
       "quantity": 3,
       "price": "12.345"
     }
@@ -22,12 +23,14 @@ content-type: application/json
 GET {{base}}/"" HTTP/1.1
 accept: application/json
 content-type: application/json
+Authorization: Bearer {{token}}
 
 # @name FindCartByUserId
 ###
 GET {{base}}?userId="" HTTP/1.1
 accept: application/json
 content-type: application/json
+Authorization: Bearer {{token}}
 
 
 # @name FindCartByProductId
@@ -35,3 +38,4 @@ content-type: application/json
 GET {{base}}?productId="" HTTP/1.1
 accept: application/json
 content-type: application/json
+Authorization: Bearer {{token}}

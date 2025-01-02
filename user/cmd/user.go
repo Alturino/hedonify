@@ -10,13 +10,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Alturino/ecommerce/internal/common/constants"
-	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
+	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/config"
-	database "github.com/Alturino/ecommerce/internal/infra"
+	"github.com/Alturino/ecommerce/internal/infra"
 	"github.com/Alturino/ecommerce/internal/log"
 	"github.com/Alturino/ecommerce/internal/middleware"
 	"github.com/Alturino/ecommerce/internal/otel"
@@ -53,7 +54,7 @@ func RunUserService(c context.Context) {
 	logger = logger.With().Str(log.KeyProcess, "initializing router").Logger()
 	logger.Info().Msg("initializing router")
 	mux := mux.NewRouter()
-	mux.Use(middleware.Logging)
+	mux.Use(otelmux.Middleware(constants.AppUserService), middleware.Logging)
 	logger.Info().Msg("initialized router")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing otel sdk").Logger()
@@ -62,20 +63,26 @@ func RunUserService(c context.Context) {
 	otelShutdowns, err := otel.InitOtelSdk(c, constants.AppUserService, cfg.Otel)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel sdk with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+		commonErrors.HandleError(err, logger, span)
 	}
 	logger.Info().Msg("initialized otel sdk")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing database").Logger()
 	logger.Info().Msg("initializing database")
 	c = logger.WithContext(c)
-	db := database.NewDatabaseClient(c, cfg.Database)
+	db := infra.NewDatabaseClient(c, cfg.Database)
 	logger.Info().Msg("initialized database")
+
+	logger = logger.With().Str(log.KeyProcess, "initializing cache").Logger()
+	logger.Info().Msg("initializing cache")
+	c = logger.WithContext(c)
+	cache := infra.NewCacheClient(c, cfg.Cache)
+	logger.Info().Msg("initialized cache")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing userService").Logger()
 	logger.Info().Msg("initializing userService")
 	queries := repository.New(db)
-	userService := service.NewUserService(queries, cfg.Application)
+	userService := service.NewUserService(queries, cfg.Application, cache)
 	logger.Info().Msg("initialized userService")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing userController").Logger()
@@ -100,11 +107,11 @@ func RunUserService(c context.Context) {
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
 			err = fmt.Errorf("error=%w occured while server is running", err)
-			inErrors.HandleError(err, logger, span)
+			commonErrors.HandleError(err, logger, span)
 			c = logger.WithContext(c)
 			if err := otel.ShutdownOtel(c, otelShutdowns); err != nil {
 				err = fmt.Errorf("failed shutting down otel with error=%w", err)
-				inErrors.HandleError(err, logger, span)
+				commonErrors.HandleError(err, logger, span)
 			}
 			return
 		}
@@ -120,7 +127,7 @@ func RunUserService(c context.Context) {
 	err = otel.ShutdownOtel(c, otelShutdowns)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down otel with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+		commonErrors.HandleError(err, logger, span)
 		return
 	}
 	logger.Info().Msg("shutdown otel")
@@ -129,7 +136,7 @@ func RunUserService(c context.Context) {
 	err = server.Shutdown(c)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down http server with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+		commonErrors.HandleError(err, logger, span)
 		return
 	}
 	logger.Info().Msg("shutdown http server")

@@ -14,8 +14,10 @@ import (
 	"github.com/Alturino/ecommerce/internal/log"
 )
 
-func VerifyToken(c context.Context, token string) error {
+func VerifyToken(c context.Context, token string) (*jwt.Token, error) {
 	c, span := otel.Tracer.Start(c, "VerifyToken")
+	defer span.End()
+
 	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KeyTag, "VerifyToken").
@@ -45,7 +47,7 @@ func VerifyToken(c context.Context, token string) error {
 	if err != nil {
 		err = fmt.Errorf("failed parsing with claims with error=%w", err)
 		inErrors.HandleError(err, logger, span)
-		return err
+		return nil, err
 	}
 	logger = logger.With().Any(log.KeyToken, jwtToken).Logger()
 	logger.Info().Msg("parsed claims")
@@ -55,9 +57,19 @@ func VerifyToken(c context.Context, token string) error {
 	if !jwtToken.Valid {
 		err = fmt.Errorf("failed validating token with error=%w", inErrors.ErrTokenInvalid)
 		inErrors.HandleError(err, logger, span)
-		return inErrors.ErrTokenInvalid
+		return nil, inErrors.ErrTokenInvalid
 	}
 	logger.Info().Msg("validated token")
 
-	return nil
+	return jwtToken, nil
+}
+
+type jwtToken struct{}
+
+func AttachJwtToken(c context.Context, jwt *jwt.Token) context.Context {
+	return context.WithValue(c, jwtToken{}, jwt)
+}
+
+func JwtTokenFromContext(c context.Context) *jwt.Token {
+	return c.Value(jwtToken{}).(*jwt.Token)
 }

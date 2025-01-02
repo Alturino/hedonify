@@ -6,10 +6,13 @@ package repository
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type Querier interface {
 	FindByEmail(ctx context.Context, email string) (User, error)
+	FindById(ctx context.Context, id uuid.UUID) (User, error)
 	InsertUser(ctx context.Context, arg InsertUserParams) (User, error)
 }
 

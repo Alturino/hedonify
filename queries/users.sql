@@ -4,4 +4,9 @@ insert into users (username, email, password, created_at, updated_at) values (
 ) returning *;
 
 -- name: FindByEmail :one
-select * from users where email = $1;
+select * from users
+where email = $1;
+
+-- name: FindById :one
+select * from users
+where id = $1;

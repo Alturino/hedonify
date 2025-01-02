@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -54,7 +56,7 @@ func RunCartService(c context.Context) {
 	logger = logger.With().Str(log.KeyProcess, "initializing router").Logger()
 	logger.Info().Msg("initializing router")
 	mux := mux.NewRouter()
-	mux.Use(middleware.Logging)
+	mux.Use(otelmux.Middleware(constants.AppCartService), middleware.Logging, middleware.Auth)
 	logger.Info().Msg("initialized router")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing otel sdk").Logger()
@@ -76,13 +78,17 @@ func RunCartService(c context.Context) {
 
 	logger = logger.With().Str(log.KeyProcess, "initializing cache").Logger()
 	logger.Info().Msg("initializing cache")
+	c = logger.WithContext(c)
 	cache := infra.NewCacheClient(c, cfg.Cache)
 	logger.Info().Msg("initialized cache")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing cart service").Logger()
 	logger.Info().Msg("initializing cart service")
 	queries := repository.New(db)
-	httpClient := http.Client{Timeout: 5 * time.Second}
+	httpClient := http.Client{
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
+		Timeout:   5 * time.Second,
+	}
 	cartService := service.NewCartService(db, queries, cache, &httpClient)
 	logger.Info().Msg("initialized cart service")
 
@@ -93,7 +99,7 @@ func RunCartService(c context.Context) {
 
 	logger = logger.With().Str(log.KeyProcess, "initializing server").Logger()
 	logger.Info().Msg("initializing server")
-	server := http.Server{
+	httpServer := http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Application.Host, cfg.Application.Port),
 		BaseContext:  func(net.Listener) context.Context { return c },
 		Handler:      mux,
@@ -104,10 +110,10 @@ func RunCartService(c context.Context) {
 
 	go func() {
 		logger = logger.With().Str(log.KeyProcess, "start server").Logger()
-		logger.Info().Msgf("start listening request at %s", server.Addr)
+		logger.Info().Msgf("start listening request at %s", httpServer.Addr)
 
 		logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			err = fmt.Errorf("error=%w occured while server is running", err)
 			inErrors.HandleError(err, logger, span)
 			c = logger.WithContext(c)
@@ -127,7 +133,7 @@ func RunCartService(c context.Context) {
 
 	logger.Info().Msg("shutting down http server")
 	c = logger.WithContext(c)
-	err = server.Shutdown(c)
+	err = httpServer.Shutdown(c)
 	if err != nil {
 		err = fmt.Errorf("filed shutting down http server with error=%w", err)
 		inErrors.HandleError(err, logger, span)

@@ -1,17 +1,11 @@
 package request
 
 import (
-	"time"
-
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-
-	"github.com/Alturino/ecommerce/cart/response"
 )
 
 type Cart struct {
-	CartItems []CartItem `validate:"required"      json:"cartItems"`
-	UserID    uuid.UUID  `validate:"required,uuid" json:"userId"`
+	CartItems []CartItem `validate:"required" json:"cartItems"`
 }
 
 type CartItem struct {
@@ -30,39 +24,4 @@ type InsertCartItem struct {
 	ProductId uuid.UUID `validate:"required,uuid"  json:"productId"`
 	Price     string    `validate:"required"       json:"price"`
 	Quantity  int       `validate:"required,gte=1" json:"quantity"`
-}
-
-func (c Cart) ResponseCart() response.Cart {
-	cartId := uuid.New()
-	cartItems := make([]response.CartItem, len(c.CartItems))
-	for _, item := range c.CartItems {
-		cartItem, err := item.ResponseCartItem(cartId)
-		if err != nil {
-			continue
-		}
-		cartItems = append(cartItems, cartItem)
-	}
-	return response.Cart{
-		ID:        cartId,
-		UserID:    c.UserID,
-		CartItems: cartItems,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-}
-
-func (c CartItem) ResponseCartItem(cartId uuid.UUID) (response.CartItem, error) {
-	price, err := decimal.NewFromString(c.Price)
-	if err != nil {
-		return response.CartItem{}, err
-	}
-	return response.CartItem{
-		ID:        uuid.New(),
-		CartID:    cartId,
-		ProductID: c.ProductId,
-		Quantity:  int32(c.Quantity),
-		Price:     price,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}, nil
 }

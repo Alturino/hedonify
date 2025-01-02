@@ -5,18 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Alturino/ecommerce/cart/internal/common/cache"
 	"github.com/Alturino/ecommerce/cart/internal/common/otel"
@@ -24,7 +20,6 @@ import (
 	"github.com/Alturino/ecommerce/cart/request"
 	"github.com/Alturino/ecommerce/cart/response"
 	"github.com/Alturino/ecommerce/internal/common/errors"
-	inHttp "github.com/Alturino/ecommerce/internal/common/http"
 	"github.com/Alturino/ecommerce/internal/log"
 )
 
@@ -44,9 +39,10 @@ func NewCartService(
 	return CartService{pool: pool, queries: queries, cache: cache, http: http}
 }
 
-func (svc *CartService) InsertCart(
+func (svc CartService) InsertCart(
 	c context.Context,
 	param request.Cart,
+	userID uuid.UUID,
 ) (response.Cart, error) {
 	c, span := otel.Tracer.Start(c, "CartService InsertCart")
 	defer span.End()
@@ -56,157 +52,10 @@ func (svc *CartService) InsertCart(
 		Str(log.KeyTag, "CartService InsertCart").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "initializing transaction").Logger()
-	logger.Info().Msg("initializing transaction")
-	tx, err := svc.pool.BeginTx(c, pgx.TxOptions{})
-	if err != nil {
-		err = fmt.Errorf("failed initializing transaction with error=%w", err)
-		errors.HandleError(err, logger, span)
-		return response.Cart{}, err
-	}
-	logger.Info().Msg("initialized transaction")
-	defer func(lg zerolog.Logger) {
-		logger = lg.With().Str(log.KeyProcess, "rollback transaction").Logger()
-		logger.Info().Msg("rolling back transaction")
-		err = tx.Rollback(c)
-		if err != nil {
-			err = fmt.Errorf("failed rolling back transaction with error=%w", err)
-			logger.Error().Err(err).Str(log.KeyProcess, "rollback transaction").Msg(err.Error())
-			return
-		}
-		logger.Info().Msg("rolled back transaction")
-	}(logger)
-
-	logger = logger.With().Str(log.KeyProcess, "inserting cart request").Logger()
-	logger.Info().Msg("inserting cart request")
-	c = logger.WithContext(c)
-	cart, err := svc.queries.InsertCart(c, param.UserID)
-	if err != nil {
-		err = fmt.Errorf("failed inserting cart request with error=%w", err)
-		errors.HandleError(err, logger, span)
-		return response.Cart{}, err
-	}
-	logger = logger.With().Any(log.KeyCart, cart).Logger()
-	logger.Info().Msg("inserted cart request")
-
-	logger = logger.With().Str(log.KeyProcess, "inserting cart item request").Logger()
-	logger.Info().Msg("inserting cart item")
-	args := []repository.InsertCartItemsParams{}
-	var wg sync.WaitGroup
-	var mutex sync.Mutex
-	for i, item := range param.CartItems {
-		wg.Add(1)
-		go func(c context.Context) {
-			c, span := otel.Tracer.Start(
-				c,
-				fmt.Sprintf("CartService InsertCart goroutine=%d", i),
-				trace.WithAttributes(attribute.Int("goroutine=%d", i)),
-			)
-			defer span.End()
-
-			mutex.Lock()
-			defer mutex.Unlock()
-			defer wg.Done()
-
-			logger = logger.With().
-				Str(log.KeyProductID, item.ProductId.String()).
-				Int("goroutine", i).
-				Logger()
-			logger.Info().Msg("validating cart item price")
-			price, err := decimal.NewFromString(item.Price)
-			if err != nil {
-				err = fmt.Errorf("failed validating price with error=%w", err)
-				errors.HandleError(err, logger, span)
-				return
-			}
-			logger.Info().Msg("validated cart item price")
-
-			logger.Info().Msgf("checking productId=%s exist", item.ProductId.String())
-			logger.Info().
-				Msgf("creating request to product-service checking productId=%s exist", item.ProductId.String())
-			req, err := http.NewRequestWithContext(
-				c,
-				http.MethodGet,
-				fmt.Sprintf(inHttp.PRODUCT_BASE_URL+"/%s", item.ProductId.String()),
-				nil,
-			)
-			defer func() {
-				logger.Info().Msg("closing request body")
-				err := req.Body.Close()
-				if err != nil {
-					err = fmt.Errorf("failed closing request body with error=%w", err)
-					logger.Error().Err(err).Msg(err.Error())
-				}
-				logger.Info().Msg("closed request body")
-			}()
-			if err != nil {
-				err = fmt.Errorf(
-					"failed creating request to product-service checking productId=%s exist with error=%w",
-					item.ProductId.String(),
-					err,
-				)
-				errors.HandleError(err, logger, span)
-				return
-			}
-			logger.Info().
-				Msgf("created request to product-service checking productId=%s exist", item.ProductId.String())
-
-			logger.Info().
-				Msgf("sending request to product-service checking productId=%s exist", item.ProductId.String())
-			res, err := svc.http.Do(req)
-			if err != nil || res.StatusCode != http.StatusOK {
-				err = fmt.Errorf(
-					"failed sending request to product-service checking productId=%s exist with error=%w",
-					item.ProductId.String(),
-					err,
-				)
-				errors.HandleError(err, logger, span)
-				return
-			}
-			logger.Info().Msgf("productId=%s exist", item.ProductId.String())
-
-			args = append(
-				args,
-				repository.InsertCartItemsParams{
-					ID:        uuid.New(),
-					CartID:    cart.ID,
-					ProductID: item.ProductId,
-					Quantity:  int32(item.Quantity),
-					Price: pgtype.Numeric{
-						Int:              price.BigInt(),
-						Exp:              price.Exponent(),
-						NaN:              false,
-						InfinityModifier: pgtype.Finite,
-						Valid:            true,
-					},
-				},
-			)
-		}(c)
-	}
-	wg.Wait()
-	insertedCount, err := svc.queries.InsertCartItems(c, args)
-	if err != nil || insertedCount <= 0 {
-		err = fmt.Errorf("failed inserting cart item with error=%w", err)
-		errors.HandleError(err, logger, span)
-		return response.Cart{}, err
-	}
-	logger.Info().Msg("inserted cart request")
-	logger.Info().Msgf("inserted cart item with count=%d", insertedCount)
-
-	logger = logger.With().Str(log.KeyProcess, "commiting transaction").Logger()
-	logger.Info().Msg("commiting transaction")
-	err = tx.Commit(c)
-	if err != nil {
-		err = fmt.Errorf("failed commiting transaction with error=%w", err)
-		errors.HandleError(err, logger, span)
-		return response.Cart{}, err
-	}
-	logger.Info().Msg("commited transaction")
-
 	return response.Cart{}, nil
 }
 
-func (s *CartService) InsertCartItem(
+func (s CartService) InsertCartItem(
 	c context.Context,
 	param request.InsertCartItem,
 ) (response.CartItem, error) {
@@ -265,7 +114,7 @@ func (s *CartService) InsertCartItem(
 	}, nil
 }
 
-func (s *CartService) FindCartById(
+func (s CartService) FindCartById(
 	c context.Context,
 	id uuid.UUID,
 ) (cart response.Cart, err error) {
@@ -348,7 +197,7 @@ func (s *CartService) FindCartById(
 	return cart, nil
 }
 
-func (s *CartService) FindCartByUserId(
+func (s CartService) FindCartByUserId(
 	c context.Context,
 	userId uuid.UUID,
 ) (carts []repository.FindCartByUserIdRow, err error) {
@@ -416,7 +265,7 @@ func (s *CartService) FindCartByUserId(
 	return carts, nil
 }
 
-func (s *CartService) RemoveCartItem(c context.Context, param request.RemoveCartItem) error {
+func (s CartService) RemoveCartItem(c context.Context, param request.RemoveCartItem) error {
 	c, span := otel.Tracer.Start(c, "CartService RemoveCartItem")
 	defer span.End()
 

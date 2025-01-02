@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -9,33 +10,40 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/Alturino/ecommerce/internal/common/constants"
-	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
+	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/config"
 	"github.com/Alturino/ecommerce/internal/log"
+	"github.com/Alturino/ecommerce/user/internal/common/cache"
 	userErrors "github.com/Alturino/ecommerce/user/internal/common/errors"
-	inOtel "github.com/Alturino/ecommerce/user/internal/common/otel"
+	userOtel "github.com/Alturino/ecommerce/user/internal/common/otel"
 	"github.com/Alturino/ecommerce/user/internal/repository"
 	"github.com/Alturino/ecommerce/user/internal/request"
 )
 
 type UserService struct {
-	queries *repository.Queries
 	config  config.Application
+	cache   *redis.Client
+	queries *repository.Queries
 }
 
-func NewUserService(queries *repository.Queries, config config.Application) *UserService {
-	return &UserService{queries: queries, config: config}
+func NewUserService(
+	queries *repository.Queries,
+	config config.Application,
+	cache *redis.Client,
+) *UserService {
+	return &UserService{queries: queries, config: config, cache: cache}
 }
 
-func (u *UserService) Login(
+func (u UserService) Login(
 	c context.Context,
 	param request.LoginRequest,
 ) (string, error) {
-	c, span := inOtel.Tracer.Start(c, "UserService Login")
+	c, span := userOtel.Tracer.Start(c, "UserService Login")
 	defer span.End()
 
 	logger := zerolog.Ctx(c).
@@ -50,7 +58,7 @@ func (u *UserService) Login(
 	if err != nil {
 		err = errors.Join(err, userErrors.ErrUserNotFound)
 		err = fmt.Errorf("failed finding user by email=%s with error=%w", param.Email, err)
-		inErrors.HandleError(err, logger, span)
+		commonErrors.HandleError(err, logger, span)
 		return "", err
 	}
 	logger.Info().Msg("found user by email")
@@ -61,7 +69,7 @@ func (u *UserService) Login(
 	if err != nil {
 		err = errors.Join(err, userErrors.ErrPasswordMismatch)
 		err = fmt.Errorf("failed verifying hashed password and password with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+		commonErrors.HandleError(err, logger, span)
 		return "", err
 	}
 	logger.Info().Msg("verified hashed password with password")
@@ -87,7 +95,7 @@ func (u *UserService) Login(
 	signedToken, err := token.SignedString([]byte(u.config.SecretKey))
 	if err != nil {
 		err = fmt.Errorf("failed signing token with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+		commonErrors.HandleError(err, logger, span)
 		return "", err
 	}
 	logger.Info().Msg("signed token")
@@ -95,11 +103,11 @@ func (u *UserService) Login(
 	return signedToken, nil
 }
 
-func (u *UserService) Register(
+func (svc UserService) Register(
 	c context.Context,
-	param request.RegisterRequest,
+	param request.Register,
 ) (repository.User, error) {
-	c, span := inOtel.Tracer.Start(c, "UserService Register")
+	c, span := userOtel.Tracer.Start(c, "UserService Register")
 	defer span.End()
 
 	logger := zerolog.Ctx(c).
@@ -112,16 +120,16 @@ func (u *UserService) Register(
 	logger.Info().Msg("hashing password")
 	hashed, err := bcrypt.GenerateFromPassword([]byte(param.Password), bcrypt.DefaultCost)
 	if err != nil {
-		err = errors.Join(err, inErrors.ErrFailedHashToken)
+		err = errors.Join(err, commonErrors.ErrFailedHashToken)
 		err = fmt.Errorf("failed hashing password with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+		commonErrors.HandleError(err, logger, span)
 		return repository.User{}, err
 	}
 	logger.Info().Msg("hashed password")
 
 	logger = logger.With().Str(log.KeyProcess, "inserting user to database").Logger()
 	logger.Info().Msg("inserting user to database")
-	user, err := u.queries.InsertUser(c, repository.InsertUserParams{
+	user, err := svc.queries.InsertUser(c, repository.InsertUserParams{
 		Username:  param.Username,
 		Email:     param.Email,
 		Password:  string(hashed),
@@ -130,10 +138,71 @@ func (u *UserService) Register(
 	})
 	if err != nil {
 		err = fmt.Errorf("failed inserting user to database with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+		commonErrors.HandleError(err, logger, span)
 		return repository.User{}, err
 	}
 	logger.Info().Msg("inserted user to database")
+
+	logger = logger.With().Str(log.KeyProcess, "inserting user to cache").Logger()
+	logger.Info().Msg("inserting user to cache")
+	err = svc.cache.JSONSet(c, fmt.Sprintf(cache.KEY_USER, user.ID.String()), "$", user).Err()
+	if err != nil {
+		err = fmt.Errorf("failed inserting user to cache with error=%w", err)
+		commonErrors.HandleError(err, logger, span)
+		return user, nil
+	}
+	logger.Info().Msg("inserted user to cache")
+
+	return user, nil
+}
+
+func (svc UserService) FindUserById(
+	c context.Context,
+	param request.FindUserById,
+) (user repository.User, err error) {
+	c, span := userOtel.Tracer.Start(c, "UserService FindUserById")
+	defer span.End()
+
+	logger := zerolog.Ctx(c).With().Str(log.KeyTag, "UserService FindUserById").Logger()
+
+	logger = logger.With().Str(log.KeyProcess, "finding user by id in cache").Logger()
+	logger.Info().Msg("finding user by id in cache")
+	jsonCache, err := svc.cache.JSONGet(c, fmt.Sprintf(cache.KEY_USER, param.ID.String())).
+		Result()
+	if err != nil {
+		err = fmt.Errorf("failed finding user by id from cache with error=%w", err)
+		commonErrors.HandleError(err, logger, span)
+
+		logger = logger.With().Str(log.KeyProcess, "finding user by id in database").Logger()
+		logger.Info().Msg("finding user by id in database")
+		user, err = svc.queries.FindById(c, param.ID)
+		if err != nil {
+			err = fmt.Errorf(
+				"failed finding user by id=%s from database with error=%w",
+				param.ID.String(),
+				err,
+			)
+			commonErrors.HandleError(err, logger, span)
+			return repository.User{}, err
+		}
+		logger = logger.With().Any(log.KeyUser, user).Logger()
+		logger.Info().Msg("found user by id in database")
+
+		return user, err
+	}
+	logger = logger.With().Str(log.KeyJsonCache, jsonCache).Logger()
+	logger.Info().Msg("found user by id in cache")
+
+	logger = logger.With().Str(log.KeyProcess, "unmarshaling user from cache").Logger()
+	logger.Info().Msg("unmarshaling user from cache")
+	err = json.Unmarshal([]byte(jsonCache), &user)
+	if err != nil {
+		err = fmt.Errorf("failed unmarshaling user from cache with error=%w", err)
+		commonErrors.HandleError(err, logger, span)
+		return repository.User{}, err
+	}
+	logger = logger.With().Any(log.KeyUser, user).Logger()
+	logger.Info().Msg("unmarshaled user from cache")
 
 	return user, nil
 }
