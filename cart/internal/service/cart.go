@@ -19,7 +19,9 @@ import (
 	"github.com/Alturino/ecommerce/cart/internal/repository"
 	"github.com/Alturino/ecommerce/cart/request"
 	"github.com/Alturino/ecommerce/cart/response"
+	"github.com/Alturino/ecommerce/internal/common/constants"
 	"github.com/Alturino/ecommerce/internal/common/errors"
+	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/log"
 )
 
@@ -52,6 +54,30 @@ func (svc CartService) InsertCart(
 		Str(log.KeyTag, "CartService InsertCart").
 		Logger()
 
+	logger = logger.With().
+		Str(log.KeyProcess, fmt.Sprintf("finding user by userId=%s in %s", userID.String(), constants.AppUserService)).
+		Logger()
+	logger.Info().Msgf("finding user by userId=%s", userID.String())
+	resp, err := svc.http.Get(fmt.Sprintf("%s/users/%s", constants.AppUserService, userID.String()))
+	if err != nil || resp.StatusCode != http.StatusOK {
+		err = fmt.Errorf("failed getting userId=%s with error=%w", userID.String(), err)
+		commonErrors.HandleError(err, logger, span)
+		return response.Cart{}, err
+	}
+	logger.Info().Msgf("found user by userId=%s", userID.String())
+
+	logger = logger.With().Str(log.KeyProcess, "inserting cart to database").Logger()
+	logger.Info().Msg("inserting cart to database")
+	cart, err := svc.queries.InsertCart(c, userID)
+	if err != nil {
+		err = fmt.Errorf("failed inserting cart with error=%w", err)
+		errors.HandleError(err, logger, span)
+		return response.Cart{}, err
+	}
+	logger.Info().Msg("inserted cart")
+
+	insertedCount, err := svc.queries.InsertCartItems(c, []repository.InsertCartItemsParams{})
+
 	return response.Cart{}, nil
 }
 
@@ -72,7 +98,7 @@ func (s CartService) InsertCartItem(
 	price, err := decimal.NewFromString(param.Price)
 	if err != nil {
 		err = fmt.Errorf("failed validating price with error=%w", err)
-		errors.HandleError(err, logger, span)
+		commonErrors.HandleError(err, logger, span)
 		return response.CartItem{}, err
 	}
 	logger.Info().Msg("validated price")
