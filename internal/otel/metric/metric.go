@@ -32,7 +32,10 @@ func InitMetricProvider(c context.Context, endpoint string) (*metric.MeterProvid
 	)
 	if err != nil {
 		err = fmt.Errorf("failed to initializing metricExporter with error=%w", err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return nil, err
 	}
 	logger.Info().Msg("initialized metricExporter")

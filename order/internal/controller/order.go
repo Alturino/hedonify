@@ -46,7 +46,10 @@ func (s *OrderController) InsertOrder(w http.ResponseWriter, r *http.Request) {
 	reqBody := request.InsertOrder{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -65,7 +68,10 @@ func (s *OrderController) InsertOrder(w http.ResponseWriter, r *http.Request) {
 	logger.Info().Msg("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%w", err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -81,7 +87,10 @@ func (s *OrderController) InsertOrder(w http.ResponseWriter, r *http.Request) {
 	cart, err := s.service.InsertOrder(c, reqBody)
 	if err != nil {
 		err = fmt.Errorf("failed inserting order with error=%w", err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -115,7 +124,10 @@ func (s *OrderController) FindOrderById(w http.ResponseWriter, r *http.Request) 
 	orderId, err := uuid.Parse(r.PathValue("orderId"))
 	if err != nil {
 		err = fmt.Errorf("failed validating orderId=%s with error=%w", orderId.String(), err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return
 	}
 	logger.Info().Msg("validated orderId")
@@ -125,7 +137,10 @@ func (s *OrderController) FindOrderById(w http.ResponseWriter, r *http.Request) 
 	c = logger.WithContext(c)
 	orders, err := s.service.FindOrderById(c, request.FindOrderById{OrderId: orderId})
 	if err != nil {
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -161,7 +176,10 @@ func (s *OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	userId, err := uuid.Parse(r.URL.Query().Get("userId"))
 	if err != nil {
 		err = fmt.Errorf("failed validating userId=%s with error=%w", userId.String(), err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return
 	}
 	logger.Info().Msg("validated userId")
@@ -170,7 +188,10 @@ func (s *OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	orderId, err := uuid.Parse(r.URL.Query().Get("orderId"))
 	if err != nil {
 		err = fmt.Errorf("failed validating orderId=%s with error=%w", orderId.String(), err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return
 	}
 	logger = logger.With().
@@ -185,7 +206,10 @@ func (s *OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	orders, err := s.service.FindOrders(c, request.FindOrders{OrderId: orderId, UserId: userId})
 	if err != nil {
 		err = fmt.Errorf("failed finding orders with error=%w", err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,

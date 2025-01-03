@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
+	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	inOtel "github.com/Alturino/ecommerce/internal/common/otel"
 	"github.com/Alturino/ecommerce/internal/config"
 	"github.com/Alturino/ecommerce/internal/log"
@@ -67,7 +67,10 @@ func InitOtelSdk(
 	)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel tracerProvider with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return nil, err
 	}
 	otel.SetTracerProvider(tracerProvider)
@@ -83,7 +86,10 @@ func InitOtelSdk(
 	)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel meterProvider with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return shutdownFuncs, err
 	}
 	otel.SetMeterProvider(meterProvider)

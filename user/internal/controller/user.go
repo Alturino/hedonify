@@ -48,7 +48,10 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 	reqBody := request.LoginRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%s", err.Error())
+
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -67,7 +70,10 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 	logger.Info().Msg("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%s", err.Error())
+
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -83,7 +89,10 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil && errors.Is(err, userErrors.ErrUserNotFound) {
 		err = errors.Join(err, userErrors.ErrUserNotFound)
 		err = fmt.Errorf("failed login with error=%w", err)
+
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -139,7 +148,10 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 	if err := validate.StructCtx(c, reqBody); err != nil &&
 		errors.Is(err, &validator.InvalidValidationError{}) {
 		err = fmt.Errorf("failed validating request body with error=%w", err)
+
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -154,7 +166,10 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 	user, err := u.service.Register(c, reqBody)
 	if err != nil {
 		err = fmt.Errorf("failed registering user with error=%w", err)
+
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -189,7 +204,10 @@ func (u UserController) FindUserById(w http.ResponseWriter, r *http.Request) {
 	userId, err := uuid.Parse(r.PathValue("userId"))
 	if err != nil {
 		err = fmt.Errorf("failed parsing userId with error=%w", err)
+
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -206,6 +224,8 @@ func (u UserController) FindUserById(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err = fmt.Errorf("failed finding user by id with error=%w", err)
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,

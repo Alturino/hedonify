@@ -36,5 +36,5 @@ insert into cart_items (id, cart_id, product_id, quantity, price) values (
 
 -- name: InsertCartItems :copyfrom
 insert into cart_items (id, cart_id, product_id, quantity, price) values (
+    $1, $2, $3, $4, $5
 );
-$1, $2, $3, $4, $5

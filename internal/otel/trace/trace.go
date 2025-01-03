@@ -37,7 +37,10 @@ func InitTracerProvider(
 	)
 	if err != nil {
 		err = fmt.Errorf("failed creating traceExporter with error=%w", err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return nil, err
 	}
 	logger.Info().Msg("initialized traceExporter")
@@ -47,7 +50,10 @@ func InitTracerProvider(
 	traceRes, err := resource.New(c, resource.WithAttributes(semconv.ServiceName(serviceName)))
 	if err != nil {
 		err = fmt.Errorf("failed creating traceRes with error=%w", err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return nil, err
 	}
 	logger.Info().Msg("initialized traceRes")

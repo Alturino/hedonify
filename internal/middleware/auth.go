@@ -27,7 +27,10 @@ func Auth(next http.Handler) http.Handler {
 				"failed checking authorization header with error=%w",
 				commonErrors.ErrEmptyAuth,
 			)
+
 			commonErrors.HandleError(err, logger, span)
+			logger.Error().Err(err).Msg(err.Error())
+
 			commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 				"status":     "failed",
 				"statusCode": http.StatusUnauthorized,
@@ -41,10 +44,13 @@ func Auth(next http.Handler) http.Handler {
 		logger = logger.With().Str(log.KeyProcess, "verifying token").Logger()
 		logger.Info().Msg("verifying token")
 		token := authorization[len("bearer "):]
-		jwt, err := common.VerifyToken(r.Context(), token)
+		c = logger.WithContext(c)
+		jwt, err := common.VerifyToken(c, token)
 		if err != nil {
 			err = fmt.Errorf("failed verifying token with error=%w", err)
 			commonErrors.HandleError(err, logger, span)
+			logger.Error().Err(err).Msg(err.Error())
+
 			commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 				"status":     "failed",
 				"statusCode": http.StatusUnauthorized,

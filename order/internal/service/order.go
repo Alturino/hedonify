@@ -44,7 +44,10 @@ func (s *OrderService) InsertOrder(
 	tx, err := s.pool.BeginTx(c, pgx.TxOptions{})
 	if err != nil {
 		err = fmt.Errorf("failed initializing transaction with error=%w", err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return repository.Order{}, err
 	}
 	logger.Info().Msg("initialized transaction")
@@ -55,7 +58,10 @@ func (s *OrderService) InsertOrder(
 		err = tx.Rollback(c)
 		if err != nil {
 			err = fmt.Errorf("failed rolling back transaction with error=%w", err)
-			errors.HandleError(err, logger, span)
+			
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 			return
 		}
 		logger.Info().Msg("rolled back transaction")
@@ -72,7 +78,10 @@ func (s *OrderService) InsertOrder(
 	)
 	if err != nil {
 		err = fmt.Errorf("failed inserting order request with error=%w", err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return repository.Order{}, err
 	}
 	logger = logger.With().Any(log.KeyOrder, order).Logger()
@@ -107,7 +116,10 @@ func (s *OrderService) InsertOrder(
 	insertedCount, err := s.queries.InsertOrderItem(c, args)
 	if err != nil || insertedCount <= 0 {
 		err = fmt.Errorf("failed inserting order item with error=%s", err.Error())
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return repository.Order{}, err
 	}
 	logger.Info().Msgf("inserted order item with count=%d", insertedCount)
@@ -117,7 +129,10 @@ func (s *OrderService) InsertOrder(
 	err = tx.Commit(c)
 	if err != nil {
 		err = fmt.Errorf("failed committing transaction with error=%w", err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return repository.Order{}, err
 	}
 	logger.Info().Msg("committed transaction")
@@ -142,7 +157,10 @@ func (s *OrderService) FindOrderById(
 	order, err := s.queries.FindOrderById(c, param.OrderId)
 	if err != nil {
 		err = fmt.Errorf("failed finding order by id with error=%w", err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return response.Order{}, err
 	}
 	logger.Info().Any(log.KeyOrder, order).Msg("found order by id")
@@ -158,7 +176,10 @@ func (s *OrderService) FindOrderById(
 	repoOrderItem, err := s.queries.FindOrderItemById(c, param.OrderId)
 	if err != nil {
 		err = fmt.Errorf("failed finding order by id=%s with error=%w", param.OrderId, err)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return response.Order{}, err
 	}
 	logger.Info().
@@ -216,7 +237,10 @@ func (s *OrderService) FindOrders(
 			param.UserId,
 			err,
 		)
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return nil, err
 	}
 	logger.Info().Any(log.KeyOrders, orders).Msg("found orders")

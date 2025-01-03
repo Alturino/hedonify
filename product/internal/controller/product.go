@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 
-	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
+	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	inHttp "github.com/Alturino/ecommerce/internal/common/http"
 	"github.com/Alturino/ecommerce/internal/log"
 	"github.com/Alturino/ecommerce/product/internal/common/otel"
@@ -48,7 +48,9 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 	reqBody := request.Product{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -67,7 +69,9 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 	logger.Info().Msg("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -83,7 +87,9 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 	product, err := p.service.InsertProduct(c, reqBody)
 	if err != nil {
 		err = fmt.Errorf("failed inserting product with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -131,7 +137,9 @@ func (p ProductController) FindProducts(w http.ResponseWriter, r *http.Request) 
 	err := validate.StructCtx(c, req)
 	if err != nil {
 		err = fmt.Errorf("failed validating query params with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return
 	}
 	logger.Info().Msg("validated query params")
@@ -142,7 +150,10 @@ func (p ProductController) FindProducts(w http.ResponseWriter, r *http.Request) 
 	products, err := p.service.FindProducts(c, req)
 	if err != nil {
 		err = fmt.Errorf("failed finding products with name=%s with error=%w", name, err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -177,7 +188,10 @@ func (p ProductController) FindProductById(w http.ResponseWriter, r *http.Reques
 	id, err := uuid.Parse(r.PathValue("productId"))
 	if err != nil {
 		err = fmt.Errorf("failed get product id with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return
 	}
 	logger = logger.With().Str(log.KeyProductID, id.String()).Logger()
@@ -190,7 +204,10 @@ func (p ProductController) FindProductById(w http.ResponseWriter, r *http.Reques
 	product, err := p.service.FindProductById(c, id)
 	if err != nil {
 		err = fmt.Errorf("failed finding product with id=%s with error=%w", id.String(), err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -225,7 +242,10 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 	id, err := uuid.Parse(r.PathValue("productId"))
 	if err != nil {
 		err = fmt.Errorf("failed getting pathvalue productId with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -241,7 +261,10 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 	reqBody := request.Product{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -265,7 +288,10 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 	logger.Info().Msg("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -280,7 +306,10 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 	product, err := p.service.RemoveProduct(c, id)
 	if err != nil {
 		err = fmt.Errorf("failed remove product with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -314,7 +343,10 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 	id, err := uuid.Parse(r.PathValue("productId"))
 	if err != nil {
 		err = fmt.Errorf("failed getting pathvalue productId with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -330,7 +362,10 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 	reqBody := request.Product{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -349,7 +384,10 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 	logger.Info().Msg("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -364,7 +402,10 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 	product, err := p.service.UpdateProduct(c, id, reqBody)
 	if err != nil {
 		err = fmt.Errorf("failed updating product with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,

@@ -21,7 +21,7 @@ import (
 	"github.com/Alturino/ecommerce/cart/internal/repository"
 	"github.com/Alturino/ecommerce/cart/internal/service"
 	"github.com/Alturino/ecommerce/internal/common/constants"
-	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
+	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/config"
 	"github.com/Alturino/ecommerce/internal/infra"
 	"github.com/Alturino/ecommerce/internal/log"
@@ -65,7 +65,10 @@ func RunCartService(c context.Context) {
 	otelShutdowns, err := otel.InitOtelSdk(c, constants.AppCartService, cfg.Otel)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel sdk with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return
 	}
 	logger.Info().Msg("initialized otel sdk")
@@ -115,11 +118,17 @@ func RunCartService(c context.Context) {
 		logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			err = fmt.Errorf("error=%w occured while server is running", err)
-			inErrors.HandleError(err, logger, span)
+
+			commonErrors.HandleError(err, logger, span)
+			logger.Error().Err(err).Msg(err.Error())
+
 			c = logger.WithContext(c)
 			if err := otel.ShutdownOtel(c, otelShutdowns); err != nil {
 				err = fmt.Errorf("failed shutting down otel with error=%w", err)
-				inErrors.HandleError(err, logger, span)
+
+				commonErrors.HandleError(err, logger, span)
+				logger.Error().Err(err).Msg(err.Error())
+
 				return
 			}
 			return
@@ -136,7 +145,10 @@ func RunCartService(c context.Context) {
 	err = httpServer.Shutdown(c)
 	if err != nil {
 		err = fmt.Errorf("filed shutting down http server with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 	}
 	logger.Info().Msg("shutdown http server")
 
@@ -145,7 +157,10 @@ func RunCartService(c context.Context) {
 	err = otel.ShutdownOtel(c, otelShutdowns)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down otel with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 	}
 	logger.Info().Msg("shutdown otel")
 

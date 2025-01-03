@@ -63,7 +63,10 @@ func RunUserService(c context.Context) {
 	otelShutdowns, err := otel.InitOtelSdk(c, constants.AppUserService, cfg.Otel)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel sdk with error=%w", err)
-		commonErrors.HandleError(err, logger, span)
+		
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 	}
 	logger.Info().Msg("initialized otel sdk")
 
@@ -107,11 +110,17 @@ func RunUserService(c context.Context) {
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
 			err = fmt.Errorf("error=%w occured while server is running", err)
-			commonErrors.HandleError(err, logger, span)
+			
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 			c = logger.WithContext(c)
 			if err := otel.ShutdownOtel(c, otelShutdowns); err != nil {
 				err = fmt.Errorf("failed shutting down otel with error=%w", err)
-				commonErrors.HandleError(err, logger, span)
+				
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 			}
 			return
 		}
@@ -127,7 +136,10 @@ func RunUserService(c context.Context) {
 	err = otel.ShutdownOtel(c, otelShutdowns)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down otel with error=%w", err)
-		commonErrors.HandleError(err, logger, span)
+		
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return
 	}
 	logger.Info().Msg("shutdown otel")
@@ -136,7 +148,10 @@ func RunUserService(c context.Context) {
 	err = server.Shutdown(c)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down http server with error=%w", err)
-		commonErrors.HandleError(err, logger, span)
+		
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return
 	}
 	logger.Info().Msg("shutdown http server")

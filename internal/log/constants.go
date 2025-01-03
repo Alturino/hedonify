@@ -10,6 +10,8 @@ const (
 	KeyCartItemId         = "cartItemId"
 	KeyCart               = "cart"
 	KeyCartItems          = "cartItems"
+	KeyCartItemsCount     = "cartItemsCount"
+	KeyInsertedCartItems  = "insertedCartItems"
 	KeyConfig             = "config"
 	KeyEmail              = "email"
 	KeyProcess            = "process"
@@ -36,6 +38,7 @@ const (
 	KeyJsonCache          = "jsonCache"
 	KeyOrderID            = "orderId"
 	KeyDbURL              = "dbURL"
+	KeyPrice              = "price"
 	KeyMinPrice           = "minPrice"
 	KeyMaxPrice           = "maxPrice"
 )

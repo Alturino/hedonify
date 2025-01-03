@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -20,7 +21,6 @@ import (
 	"github.com/Alturino/ecommerce/cart/request"
 	"github.com/Alturino/ecommerce/cart/response"
 	"github.com/Alturino/ecommerce/internal/common/constants"
-	"github.com/Alturino/ecommerce/internal/common/errors"
 	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/log"
 )
@@ -52,6 +52,7 @@ func (svc CartService) InsertCart(
 	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KeyTag, "CartService InsertCart").
+		Int(log.KeyCartItems, len(param.CartItems)).
 		Logger()
 
 	logger = logger.With().
@@ -62,21 +63,121 @@ func (svc CartService) InsertCart(
 	if err != nil || resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("failed getting userId=%s with error=%w", userID.String(), err)
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
 	logger.Info().Msgf("found user by userId=%s", userID.String())
 
+	logger = logger.With().Str(log.KeyProcess, "initializing transaction").Logger()
+	logger.Info().Msg("initializing transaction")
+	tx, err := svc.pool.BeginTx(c, pgx.TxOptions{})
+	logger.Info().Msg("initialized transaction")
+	defer func(lg zerolog.Logger) {
+		l := lg.With().Str(log.KeyProcess, "rolling back transaction").Logger()
+		l.Info().Msg("rolling back transaction")
+		err = tx.Rollback(c)
+		if err != nil {
+			err = fmt.Errorf("failed rolling back transaction with error=%w", err)
+			commonErrors.HandleError(err, l, span)
+			logger.Error().Err(err).Msg(err.Error())
+
+		}
+		l.Info().Msg("rolled back transaction")
+	}(logger)
+
 	logger = logger.With().Str(log.KeyProcess, "inserting cart to database").Logger()
 	logger.Info().Msg("inserting cart to database")
-	cart, err := svc.queries.InsertCart(c, userID)
+	cart, err := svc.queries.WithTx(tx).InsertCart(c, userID)
 	if err != nil {
 		err = fmt.Errorf("failed inserting cart with error=%w", err)
-		errors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return response.Cart{}, err
 	}
 	logger.Info().Msg("inserted cart")
 
-	insertedCount, err := svc.queries.InsertCartItems(c, []repository.InsertCartItemsParams{})
+	logger = logger.With().Str(log.KeyProcess, "inserting cart items to database").Logger()
+	logger.Info().Msg("inserting cart items to database")
+	args := make([]repository.InsertCartItemsParams, len(param.CartItems))
+	for i, item := range param.CartItems {
+		logger.Info().Msgf("validating price for cartItem i=%d", i)
+		price, err := decimal.NewFromString(item.Price)
+		if err != nil {
+			err = fmt.Errorf("failed parsing price for cartItem i=%d with error=%w", i, err)
+
+			commonErrors.HandleError(err, logger, span)
+			logger.Error().Err(err).Msg(err.Error())
+
+			continue
+		}
+		logger = logger.With().Str(log.KeyPrice, price.String()).Logger()
+		logger.Info().Msgf("validated price for cartItem i=%d", i)
+		args[i] = repository.InsertCartItemsParams{
+			ID:        uuid.New(),
+			CartID:    cart.ID,
+			ProductID: item.ProductId,
+			Quantity:  item.Quantity,
+			Price: pgtype.Numeric{
+				Int:              price.BigInt(),
+				Exp:              price.Exponent(),
+				Valid:            true,
+				NaN:              false,
+				InfinityModifier: pgtype.Finite,
+			},
+		}
+	}
+	insertedCount, err := svc.queries.WithTx(tx).InsertCartItems(c, args)
+	if err != nil {
+		err = fmt.Errorf("failed inserting cartItems to database with error=%w", err)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
+		return response.Cart{}, err
+	}
+	logger = logger.With().Int64(log.KeyCartItems, insertedCount).Logger()
+	logger.Info().Msgf("inserted %d cartItems to database", insertedCount)
+
+	logger = logger.With().Str(log.KeyProcess, "finding cart by id").Logger()
+	logger.Info().Msg("finding cart by id")
+	cartDb, err := svc.queries.WithTx(tx).FindCartById(c, cart.ID)
+	if err != nil {
+		err = fmt.Errorf("failed finding cart by id with error=%w", err)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
+		return response.Cart{}, err
+	}
+	logger.Info().Msg("found cart by id")
+
+	logger = logger.With().Str(log.KeyProcess, "inserting cart to cache").Logger()
+	logger.Info().Msg("inserting cart to cache")
+	err = svc.cache.JSONSet(c, fmt.Sprintf(cache.KEY_CARTS, cart.ID.String()), "$", cartDb).Err()
+	if err != nil {
+		err = fmt.Errorf("failed inserting cart to cache with error=%w", err)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
+		return response.Cart{}, err
+	}
+	logger.Info().Msg("inserted cart to cache")
+
+	logger = logger.With().Str(log.KeyProcess, "committing transaction").Logger()
+	logger.Info().Msg("committing transaction")
+	err = tx.Commit(c)
+	if err != nil {
+		err = fmt.Errorf("failed committing transaction with error=%w", err)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
+		return response.Cart{}, err
+	}
+	logger.Info().Msg("committed transaction")
 
 	return response.Cart{}, nil
 }
@@ -98,7 +199,10 @@ func (s CartService) InsertCartItem(
 	price, err := decimal.NewFromString(param.Price)
 	if err != nil {
 		err = fmt.Errorf("failed validating price with error=%w", err)
+
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return response.CartItem{}, err
 	}
 	logger.Info().Msg("validated price")
@@ -117,7 +221,10 @@ func (s CartService) InsertCartItem(
 	)
 	if err != nil {
 		err = fmt.Errorf("failed inserting cart item with error=%w", err)
-		errors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return response.CartItem{}, err
 	}
 	logger.Info().Msg("inserted cart item")
@@ -125,7 +232,10 @@ func (s CartService) InsertCartItem(
 	err = s.cache.Del(c, fmt.Sprintf(cache.KEY_CARTS, param.CartId.String())).Err()
 	if err != nil {
 		err = fmt.Errorf("failed deleting cart item from cache with error=%w", err)
-		errors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return response.CartItem{}, err
 	}
 
@@ -157,13 +267,18 @@ func (s CartService) FindCartById(
 	jsonCache, err := s.cache.Get(c, fmt.Sprintf(cache.KEY_CARTS, id.String())).Result()
 	if err != nil {
 		err = fmt.Errorf("failed finding cart in cache with error=%w", err)
-		errors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
 
 		logger = logger.With().Str(log.KeyProcess, "finding cart in db").Logger()
 		cart, err := s.queries.FindCartById(c, id)
 		if err != nil {
 			err = fmt.Errorf("failed finding cart in db with error=%w", err)
-			errors.HandleError(err, logger, span)
+
+			commonErrors.HandleError(err, logger, span)
+			logger.Error().Err(err).Msg(err.Error())
+
 			return response.Cart{}, err
 		}
 		logger = logger.With().Any(log.KeyCart, cart).Logger()
@@ -174,7 +289,10 @@ func (s CartService) FindCartById(
 		jsonString, err := json.Marshal(cart)
 		if err != nil {
 			err = fmt.Errorf("failed marshaling cart with error=%w", err)
-			errors.HandleError(err, logger, span)
+
+			commonErrors.HandleError(err, logger, span)
+			logger.Error().Err(err).Msg(err.Error())
+
 			return response.Cart{}, err
 		}
 		logger.Info().Msg("marshaled cart")
@@ -184,7 +302,10 @@ func (s CartService) FindCartById(
 			Err()
 		if err != nil {
 			err = fmt.Errorf("failed inserting cart in cache with error=%w", err)
-			errors.HandleError(err, logger, span)
+
+			commonErrors.HandleError(err, logger, span)
+			logger.Error().Err(err).Msg(err.Error())
+
 			return response.Cart{}, err
 		}
 		logger.Info().Msg("inserted cart in cache")
@@ -195,7 +316,10 @@ func (s CartService) FindCartById(
 		err = json.Unmarshal(cart.CartItems, &cartItems)
 		if err != nil {
 			err = fmt.Errorf("failed unmarshaling cart items with error=%w", err)
-			errors.HandleError(err, logger, span)
+
+			commonErrors.HandleError(err, logger, span)
+			logger.Error().Err(err).Msg(err.Error())
+
 			return response.Cart{}, err
 		}
 		logger.Info().Msg("unmarshaled cart items")
@@ -215,7 +339,10 @@ func (s CartService) FindCartById(
 	err = json.Unmarshal([]byte(jsonCache), &cart)
 	if err != nil {
 		err = fmt.Errorf("failed unmarshaling cache with error=%w", err)
-		errors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return response.Cart{}, err
 	}
 	logger.Info().Msg("unmarshaled cache")
@@ -248,7 +375,10 @@ func (s CartService) FindCartByUserId(
 		carts, err := s.queries.FindCartByUserId(c, userId)
 		if err != nil {
 			err = fmt.Errorf("failed finding cart in db with error=%w", err)
-			errors.HandleError(err, logger, span)
+
+			commonErrors.HandleError(err, logger, span)
+			logger.Error().Err(err).Msg(err.Error())
+
 			return nil, err
 		}
 		logger.Info().Msg("found cart in db")
@@ -258,7 +388,10 @@ func (s CartService) FindCartByUserId(
 		json, err := json.Marshal(carts)
 		if err != nil {
 			err = fmt.Errorf("failed marshaling cache with error=%w", err)
-			errors.HandleError(err, logger, span)
+
+			commonErrors.HandleError(err, logger, span)
+			logger.Error().Err(err).Msg(err.Error())
+
 			return nil, err
 		}
 		logger.Info().Msg("marshaled cache")
@@ -269,7 +402,10 @@ func (s CartService) FindCartByUserId(
 			Err()
 		if err != nil {
 			err = fmt.Errorf("failed inserting cache with error=%w", err)
-			errors.HandleError(err, logger, span)
+
+			commonErrors.HandleError(err, logger, span)
+			logger.Error().Err(err).Msg(err.Error())
+
 			return nil, err
 		}
 		logger.Info().Msg("inserted cache")
@@ -283,7 +419,10 @@ func (s CartService) FindCartByUserId(
 	err = json.Unmarshal([]byte(jsonString), &carts)
 	if err != nil {
 		err = fmt.Errorf("failed unmarshaling cache with error=%w", err)
-		errors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return nil, err
 	}
 	logger.Info().Msg("unmarshaled cache")
@@ -305,7 +444,10 @@ func (s CartService) RemoveCartItem(c context.Context, param request.RemoveCartI
 	_, err := s.queries.FindCartById(c, param.CartId)
 	if err != nil {
 		err = fmt.Errorf("failed finding cartId=%s with error=%w", param.ID.String(), err)
-		errors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return err
 	}
 	logger.Info().Msg("found cartId")
@@ -320,7 +462,10 @@ func (s CartService) RemoveCartItem(c context.Context, param request.RemoveCartI
 			param.CartId.String(),
 			err,
 		)
-		errors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return err
 	}
 	logger.Info().Msg("found cartItemId")
@@ -330,7 +475,10 @@ func (s CartService) RemoveCartItem(c context.Context, param request.RemoveCartI
 	err = s.cache.Del(c, fmt.Sprintf(cache.KEY_CARTS, param.CartId.String())).Err()
 	if err != nil {
 		err = fmt.Errorf("failed deleting cart from cache with error=%w", err)
-		errors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return err
 	}
 	logger.Info().Msg("deleted cart from cache")
@@ -348,7 +496,10 @@ func (s CartService) RemoveCartItem(c context.Context, param request.RemoveCartI
 			param.CartId.String(),
 			err,
 		)
-		errors.HandleError(err, logger, span)
+
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return err
 	}
 	logger.Info().Msg("deleted cartItem")

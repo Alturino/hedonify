@@ -8,7 +8,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/Alturino/ecommerce/internal/common/constants"
-	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
+	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/common/otel"
 	"github.com/Alturino/ecommerce/internal/config"
 	"github.com/Alturino/ecommerce/internal/log"
@@ -24,8 +24,6 @@ func VerifyToken(c context.Context, token string) (*jwt.Token, error) {
 		Str(log.KeyAuthToken, token).
 		Logger()
 
-	claims := jwt.RegisteredClaims{}
-
 	logger = logger.With().Str(log.KeyProcess, "initializing config").Logger()
 	logger.Info().Msg("initializing config")
 	c = logger.WithContext(c)
@@ -33,10 +31,11 @@ func VerifyToken(c context.Context, token string) (*jwt.Token, error) {
 	logger.Info().Msg("initialized config")
 
 	logger = logger.With().Str(log.KeyProcess, "parsing claims").Logger()
+	logger.Info().Msg("parsing claims")
 	jwtToken, err := jwt.ParseWithClaims(token,
-		claims,
+		&jwt.RegisteredClaims{},
 		func(t *jwt.Token) (interface{}, error) {
-			return config.SecretKey, nil
+			return []byte(config.SecretKey), nil
 		},
 		jwt.WithAudience(constants.AudienceUser),
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}),
@@ -45,8 +44,9 @@ func VerifyToken(c context.Context, token string) (*jwt.Token, error) {
 		jwt.WithIssuer(constants.AppUserService),
 	)
 	if err != nil {
-		err = fmt.Errorf("failed parsing with claims with error=%w", err)
-		inErrors.HandleError(err, logger, span)
+		err = fmt.Errorf("failed parsing claims with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
+		commonErrors.HandleError(err, logger, span)
 		return nil, err
 	}
 	logger = logger.With().Any(log.KeyToken, jwtToken).Logger()
@@ -55,9 +55,10 @@ func VerifyToken(c context.Context, token string) (*jwt.Token, error) {
 	logger = logger.With().Str(log.KeyProcess, "validating token").Logger()
 	logger.Info().Msg("validating token")
 	if !jwtToken.Valid {
-		err = fmt.Errorf("failed validating token with error=%w", inErrors.ErrTokenInvalid)
-		inErrors.HandleError(err, logger, span)
-		return nil, inErrors.ErrTokenInvalid
+		err = fmt.Errorf("failed validating token with error=%w", commonErrors.ErrTokenInvalid)
+		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+		return nil, commonErrors.ErrTokenInvalid
 	}
 	logger.Info().Msg("validated token")
 

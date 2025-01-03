@@ -10,7 +10,7 @@ type Cart struct {
 
 type CartItem struct {
 	Price     string    `validate:"required"       json:"price"`
-	Quantity  int       `validate:"required,gte=1" json:"quantity"`
+	Quantity  int32     `validate:"required,gte=1" json:"quantity"`
 	ProductId uuid.UUID `validate:"required,uuid"  json:"productId"`
 }
 

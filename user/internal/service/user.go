@@ -59,6 +59,7 @@ func (u UserService) Login(
 		err = errors.Join(err, userErrors.ErrUserNotFound)
 		err = fmt.Errorf("failed finding user by email=%s with error=%w", param.Email, err)
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
 		return "", err
 	}
 	logger.Info().Msg("found user by email")
@@ -70,6 +71,7 @@ func (u UserService) Login(
 		err = errors.Join(err, userErrors.ErrPasswordMismatch)
 		err = fmt.Errorf("failed verifying hashed password and password with error=%w", err)
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
 		return "", err
 	}
 	logger.Info().Msg("verified hashed password with password")
@@ -96,6 +98,7 @@ func (u UserService) Login(
 	if err != nil {
 		err = fmt.Errorf("failed signing token with error=%w", err)
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
 		return "", err
 	}
 	logger.Info().Msg("signed token")
@@ -122,7 +125,10 @@ func (svc UserService) Register(
 	if err != nil {
 		err = errors.Join(err, commonErrors.ErrFailedHashToken)
 		err = fmt.Errorf("failed hashing password with error=%w", err)
+
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return repository.User{}, err
 	}
 	logger.Info().Msg("hashed password")
@@ -139,6 +145,8 @@ func (svc UserService) Register(
 	if err != nil {
 		err = fmt.Errorf("failed inserting user to database with error=%w", err)
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
+
 		return repository.User{}, err
 	}
 	logger.Info().Msg("inserted user to database")
@@ -149,6 +157,7 @@ func (svc UserService) Register(
 	if err != nil {
 		err = fmt.Errorf("failed inserting user to cache with error=%w", err)
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
 		return user, nil
 	}
 	logger.Info().Msg("inserted user to cache")
@@ -167,11 +176,12 @@ func (svc UserService) FindUserById(
 
 	logger = logger.With().Str(log.KeyProcess, "finding user by id in cache").Logger()
 	logger.Info().Msg("finding user by id in cache")
-	jsonCache, err := svc.cache.JSONGet(c, fmt.Sprintf(cache.KEY_USER, param.ID.String())).
-		Result()
+	jsonCache, err := svc.cache.JSONGet(c, fmt.Sprintf(cache.KEY_USER, param.ID.String())).Result()
 	if err != nil {
 		err = fmt.Errorf("failed finding user by id from cache with error=%w", err)
+
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
 
 		logger = logger.With().Str(log.KeyProcess, "finding user by id in database").Logger()
 		logger.Info().Msg("finding user by id in database")
@@ -182,7 +192,10 @@ func (svc UserService) FindUserById(
 				param.ID.String(),
 				err,
 			)
+
 			commonErrors.HandleError(err, logger, span)
+			logger.Error().Err(err).Msg(err.Error())
+
 			return repository.User{}, err
 		}
 		logger = logger.With().Any(log.KeyUser, user).Logger()
@@ -199,6 +212,7 @@ func (svc UserService) FindUserById(
 	if err != nil {
 		err = fmt.Errorf("failed unmarshaling user from cache with error=%w", err)
 		commonErrors.HandleError(err, logger, span)
+		logger.Error().Err(err).Msg(err.Error())
 		return repository.User{}, err
 	}
 	logger = logger.With().Any(log.KeyUser, user).Logger()

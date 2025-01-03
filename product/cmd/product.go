@@ -109,11 +109,17 @@ func RunProductService(c context.Context) {
 			logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
 
 			err = fmt.Errorf("encounter error=%w while running server", err)
-			inError.HandleError(err, logger, span)
+			
+inError.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 			c = logger.WithContext(c)
 			if err := otel.ShutdownOtel(c, shutdownFuncs); err != nil {
 				err = fmt.Errorf("failed shutting down otel with error=%w", err)
-				inError.HandleError(err, logger, span)
+				
+inError.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 			}
 			return
 		}
@@ -127,7 +133,10 @@ func RunProductService(c context.Context) {
 	err = server.Shutdown(c)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down server with error=%w", err)
-		inError.HandleError(err, logger, span)
+		
+inError.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 	}
 	logger.Info().Msg("shutdown server")
 
@@ -136,7 +145,10 @@ func RunProductService(c context.Context) {
 	err = otel.ShutdownOtel(c, shutdownFuncs)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down otel with error=%w", err)
-		inError.HandleError(err, logger, span)
+		
+inError.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 	}
 	logger.Info().Msg("shutdown otel")
 

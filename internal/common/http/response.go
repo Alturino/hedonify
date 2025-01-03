@@ -41,7 +41,10 @@ func WriteJsonResponse(
 
 	err := json.NewEncoder(w).Encode(body)
 	if err != nil {
-		errors.HandleError(err, logger, span)
+		
+errors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return
 	}
 }

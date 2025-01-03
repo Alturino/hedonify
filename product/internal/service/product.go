@@ -45,7 +45,10 @@ func (svc *ProductService) InsertProduct(
 	price, err := decimal.NewFromString(param.Price)
 	if err != nil {
 		err = fmt.Errorf("failed to validate price with error=%w", err)
-		commonErrors.HandleError(err, logger, span)
+		
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return repository.Product{}, err
 	}
 	logger.Info().Msg("validated price")
@@ -68,7 +71,10 @@ func (svc *ProductService) InsertProduct(
 	)
 	if err != nil {
 		err = fmt.Errorf("failed to insert product with error=%w", err)
-		commonErrors.HandleError(err, logger, span)
+		
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return repository.Product{}, err
 	}
 	logger = logger.With().Any(log.KeyProduct, product).Logger()
@@ -80,7 +86,10 @@ func (svc *ProductService) InsertProduct(
 		Err()
 	if err != nil {
 		err = fmt.Errorf("failed to inserting product to cache with error=%w", err)
-		commonErrors.HandleError(err, logger, span)
+		
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return product, nil
 	}
 	logger.Info().Msg("inserted product to cache")
@@ -110,7 +119,10 @@ func (svc *ProductService) FindProducts(
 		minPrice, err := decimal.NewFromString(param.MinPrice)
 		if err != nil {
 			err = fmt.Errorf("failed to validate price minPrice error=%w", err)
-			commonErrors.HandleError(err, logger, span)
+			
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 			return nil, err
 		}
 		logger.Info().Msg("validated minPrice")
@@ -120,7 +132,10 @@ func (svc *ProductService) FindProducts(
 		maxPrice, err := decimal.NewFromString(param.MaxPrice)
 		if err != nil {
 			err = fmt.Errorf("failed to validate price maxPrice error=%w", err)
-			commonErrors.HandleError(err, logger, span)
+			
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 			return nil, err
 		}
 		logger.Info().Msg("validated maxPrice")
@@ -191,7 +206,10 @@ func (svc *ProductService) FindProductById(
 		product, err := svc.queries.FindProductById(c, id)
 		if err != nil {
 			err = fmt.Errorf("failed to find product in database with error=%w", err)
-			commonErrors.HandleError(err, logger, span)
+			
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 			return repository.Product{}, err
 		}
 		logger = logger.With().Any(log.KeyProduct, product).Logger()
@@ -206,7 +224,10 @@ func (svc *ProductService) FindProductById(
 	err = json.Unmarshal([]byte(jsonCache), &product)
 	if err != nil {
 		err = fmt.Errorf("failed to unmarshal product from cache with error=%w", err)
-		commonErrors.HandleError(err, logger, span)
+		
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return repository.Product{}, err
 	}
 	logger = logger.With().Any(log.KeyProduct, product).Logger()
@@ -233,7 +254,10 @@ func (svc *ProductService) UpdateProduct(
 	price, err := decimal.NewFromString(param.Price)
 	if err != nil {
 		err = fmt.Errorf("failed to validate price with error=%w", err)
-		commonErrors.HandleError(err, logger, span)
+		
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return repository.Product{}, err
 	}
 	logger.Info().Msg("validated price")
@@ -254,7 +278,10 @@ func (svc *ProductService) UpdateProduct(
 	})
 	if err != nil {
 		err = fmt.Errorf("failed to update product with error=%w", err)
-		commonErrors.HandleError(err, logger, span)
+		
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return repository.Product{}, err
 	}
 	logger = logger.With().Any("product", product).Logger()
@@ -265,7 +292,10 @@ func (svc *ProductService) UpdateProduct(
 	err = svc.cache.JSONSet(c, fmt.Sprintf(cache.KEY_PRODUCTS, id.String()), "$", product).Err()
 	if err != nil {
 		err = fmt.Errorf("failed to update product to cache with error=%w", err)
-		commonErrors.HandleError(err, logger, span)
+		
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return repository.Product{}, err
 	}
 	logger.Info().Msg("updated product to cache")
@@ -290,7 +320,10 @@ func (svc *ProductService) RemoveProduct(
 	err := svc.cache.JSONDel(c, fmt.Sprintf(cache.KEY_PRODUCTS, id.String()), "$").Err()
 	if err != nil {
 		err = fmt.Errorf("failed to remove product in cache with error=%w", err)
-		commonErrors.HandleError(err, logger, span)
+		
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return repository.Product{}, err
 	}
 	logger.Info().Msg("removed product in cache")
@@ -300,7 +333,10 @@ func (svc *ProductService) RemoveProduct(
 	product, err := svc.queries.DeleteProduct(c, id)
 	if err != nil {
 		err = fmt.Errorf("failed to remove product in database with error=%w", err)
-		commonErrors.HandleError(err, logger, span)
+		
+commonErrors.HandleError(err, logger, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return repository.Product{}, err
 	}
 	logger.Info().Msg("removed product in database")
