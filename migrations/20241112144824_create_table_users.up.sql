@@ -3,8 +3,8 @@ create table if not exists users (
     username varchar(128) unique not null default (''),
     email varchar(128) unique not null default (''),
     password varchar(256) not null default (''),
-    created_at timestamp not null default current_timestamp,
-    updated_at timestamp not null default current_timestamp
+    created_at timestamptz not null default current_timestamp,
+    updated_at timestamptz not null default current_timestamp
 );
 
 create index if not exists idx_username on users (username);

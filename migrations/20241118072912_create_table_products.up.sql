@@ -3,8 +3,8 @@ create table if not exists products (
     name varchar(128) unique not null default '',
     price numeric not null,
     quantity serial not null,
-    created_at timestamp not null default current_timestamp,
-    updated_at timestamp not null default current_timestamp
+    created_at timestamptz not null default current_timestamp,
+    updated_at timestamptz not null default current_timestamp
 );
 
 create index if not exists idx_product_name on products (name);

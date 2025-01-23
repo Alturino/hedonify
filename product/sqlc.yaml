@@ -2,12 +2,14 @@ version: "2"
 sql:
   - engine: "postgresql"
     queries: "../queries/products.sql"
-    schema: "../migrations/*_products.*.sql"
+    schema: "../migrations/*.sql"
     gen:
       go:
         package: "repository"
         sql_package: "pgx/v5"
         out: "./internal/repository"
+        emit_db_tags: true
+        emit_interface: true
         emit_json_tags: true
         emit_prepared_queries: true
         overrides:
