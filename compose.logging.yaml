@@ -5,7 +5,7 @@ services:
     volumes:
       - ./observability/grafana/provisioning/datasources.yaml:/etc/grafana/provisioning/datasources/default.yaml
       - ./observability/grafana/provisioning/dashboards.yaml:/etc/grafana/provisioning/dashboards/default.yaml
-      - ./observability/grafana/dashboards/node-exporter.json:/var/lib/grafana/dashboards/node-exporter.json
+      - ./observability/grafana/dashboards/:/var/lib/grafana/dashboards/
     depends_on:
       - loki
       - prometheus
