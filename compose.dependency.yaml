@@ -16,6 +16,27 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+  redis:
+    container_name: redis
+    image: redis/redis-stack:6.2.6-v17
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - redis
+      - logging
+    environment:
+      REDIS_ARGS: "--user ${REDIS_USER} on +@all ~* >${REDIS_PASSWORD} --bind 0.0.0.0 --maxmemory-policy allkeys-lru"
+    env_file:
+      - .env
+    ports:
+      - ${REDIS_PORT}:${REDIS_PORT}
 networks:
   postgres:
     name: postgres
+  redis:
+    name: redis
