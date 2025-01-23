@@ -118,7 +118,5 @@ networks:
   logging:
     name: logging
 volumes:
-  postgres:
-    name: postgres
   prometheus:
     name: prometheus
