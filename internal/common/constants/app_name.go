@@ -1,4 +1,4 @@
-package common
+package constants
 
 const (
 	AppUserService         = "user-service"
@@ -8,6 +8,4 @@ const (
 	AppCartService         = "cart-service"
 	MainEcommerce          = "main ecommerce"
 	AudienceUser           = "audience-user"
-	QueryParamID           = "queryParamID"
-	QueryParamName         = "queryParamName"
 )
