@@ -1,14 +1,15 @@
 package request
 
-import "github.com/google/uuid"
+import "github.com/shopspring/decimal"
 
-type InsertProductRequest struct {
-	Name     string `validate:"required" json:"name"`
-	Price    string `validate:"required" json:"price"`
-	Quantity int    `validate:"required" json:"quantity"`
+type Product struct {
+	Name     string          `validate:"required" json:"name"`
+	Price    decimal.Decimal `validate:"required" json:"price"`
+	Quantity int             `validate:"required" json:"quantity"`
 }
 
-type FindProductRequest struct {
-	Name string
-	ID   uuid.UUID
+type FindProduct struct {
+	Name     string
+	MinPrice decimal.Decimal `validate:"numeric"`
+	MaxPrice decimal.Decimal `validate:"numeric"`
 }
