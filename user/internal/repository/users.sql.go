@@ -8,15 +8,36 @@ package repository
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const findByEmail = `-- name: FindByEmail :one
-select id, username, email, password, created_at, updated_at from users where email = $1
+select id, username, email, password, created_at, updated_at from users
+where email = $1
 `
 
 func (q *Queries) FindByEmail(ctx context.Context, email string) (User, error) {
 	row := q.db.QueryRow(ctx, findByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.Password,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const findById = `-- name: FindById :one
+select id, username, email, password, created_at, updated_at from users
+where id = $1
+`
+
+func (q *Queries) FindById(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, findById, id)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -36,11 +57,11 @@ insert into users (username, email, password, created_at, updated_at) values (
 `
 
 type InsertUserParams struct {
-	Username  string           `json:"username"`
-	Email     string           `json:"email"`
-	Password  string           `json:"password"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+	Username  string             `db:"username" json:"username"`
+	Email     string             `db:"email" json:"email"`
+	Password  string             `db:"password" json:"password"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {
