@@ -10,11 +10,14 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 
-	"github.com/Alturino/ecommerce/internal/common/response"
+	"github.com/Alturino/ecommerce/internal/common"
+	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
+	commonHttp "github.com/Alturino/ecommerce/internal/common/http"
 	"github.com/Alturino/ecommerce/internal/log"
 	"github.com/Alturino/ecommerce/order/internal/common/otel"
 	"github.com/Alturino/ecommerce/order/internal/request"
 	"github.com/Alturino/ecommerce/order/internal/service"
+	commonRequest "github.com/Alturino/ecommerce/order/pkg/request"
 )
 
 type OrderController struct {
@@ -22,135 +25,55 @@ type OrderController struct {
 }
 
 func AttachOrderController(mux *mux.Router, service *service.OrderService) {
-	router := mux.PathPrefix("/orders").Subrouter()
-
 	controller := OrderController{service: service}
 
-	router.HandleFunc("/", controller.FindOrders).Methods("GET")
-	router.HandleFunc("/", controller.InsertOrder).Methods("POST")
-	router.HandleFunc("/{orderId}", controller.FindOrderById).Methods("GET")
-}
-
-func (s *OrderController) InsertOrder(w http.ResponseWriter, r *http.Request) {
-	c, span := otel.Tracer.Start(r.Context(), "OrderController InsertOrder")
-	defer span.End()
-
-	logger := zerolog.Ctx(c).
-		With().
-		Str(log.KeyTag, "OrderController InsertOrder").
-		Logger()
-
-	logger.Info().
-		Str(log.KeyProcess, "decoding requestBody").
-		Msg("decoding requestBody")
-	reqBody := request.InsertOrderRequest{}
-	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		logger.Error().Err(err).
-			Str(log.KeyProcess, "decoding requestBody").
-			Msgf("failed decoding request body with error=%s", err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
-			"status":     "failed",
-			"statusCode": http.StatusBadRequest,
-			"message":    err.Error(),
-		})
-		return
-	}
-	logger = logger.With().
-		Any(log.KeyRequestBody, reqBody).
-		Logger()
-	logger.Info().
-		Str(log.KeyProcess, "decoding requestBody").
-		Msg("decoded request body")
-
-	logger.Info().
-		Str(log.KeyProcess, "validating requestBody").
-		Msg("initializing validator")
-	validate := validator.New(validator.WithRequiredStructEnabled())
-	logger.Info().
-		Str(log.KeyProcess, "validating requestBody").
-		Msg("initialized validator")
-	logger.Info().
-		Str(log.KeyProcess, "validating requestBody").
-		Msg("validating request body")
-	if err := validate.StructCtx(c, reqBody); err != nil {
-		logger.Error().Err(err).
-			Str(log.KeyProcess, "validating requestBody").
-			Msgf("failed validating request body with error=%s", err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
-			"status":     "failed",
-			"statusCode": http.StatusBadRequest,
-			"message":    err.Error(),
-		})
-		return
-	}
-	logger.Info().
-		Str(log.KeyProcess, "validating requestBody").
-		Msg("validated request body")
-
-	logger = logger.With().
-		Str(log.KeyProcess, "inserting cart").
-		Logger()
-	c = logger.WithContext(c)
-
-	logger.Info().
-		Str(log.KeyProcess, "inserting cart").
-		Msg("inserting cart")
-	cart, err := s.service.InsertOrder(c, reqBody)
-	if err != nil {
-		err = fmt.Errorf("failed inserting order with error=%w", err)
-		logger.Error().Err(err).
-			Str(log.KeyProcess, "inserting cart").
-			Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
-			"status":     "failed",
-			"statusCode": http.StatusBadRequest,
-			"message":    err.Error(),
-		})
-		return
-	}
-	logger.Info().
-		Str(log.KeyProcess, "inserting cart").
-		Msg("inserted cart")
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
-		"status":     "success",
-		"statusCode": http.StatusOK,
-		"message":    "successfully inserted cart",
-		"data": map[string]interface{}{
-			"cart": cart,
-		},
-	})
+	router := mux.PathPrefix("/orders").Subrouter()
+	router.HandleFunc("", controller.FindOrders).Methods(http.MethodGet)
+	router.HandleFunc("/{orderId}", controller.FindOrderById).Methods(http.MethodGet)
+	router.HandleFunc("/checkout", controller.CreateOrder).Methods(http.MethodPost)
 }
 
 func (s *OrderController) FindOrderById(w http.ResponseWriter, r *http.Request) {
 	c, span := otel.Tracer.Start(r.Context(), "OrderController FindOrders")
 	defer span.End()
 
-	orderId, err := uuid.Parse(r.PathValue("orderId"))
-	if err != nil {
-	}
-
 	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KeyTag, "OrderController FindOrderById").
-		Str(log.KeyProcess, "finding orders").
-		Str(log.KeyOrderID, orderId.String()).
 		Logger()
-	c = logger.WithContext(c)
 
+	logger = logger.With().Str(log.KeyProcess, "validating orderId").Logger()
+	logger.Info().Msg("validating orderId")
+	pathValues := mux.Vars(r)
+	orderId, err := uuid.Parse(pathValues["orderId"])
+	if err != nil {
+		err = fmt.Errorf("failed validating orderId=%s with error=%w", orderId.String(), err)
+		commonErrors.HandleError(err, span)
+		logger.Error().Err(err).Msg(err.Error())
+		return
+	}
+	logger.Info().Msg("validated orderId")
+
+	logger = logger.With().Str(log.KeyProcess, "finding orders").Logger()
 	logger.Info().Msg("finding orders")
+	c = logger.WithContext(c)
 	orders, err := s.service.FindOrderById(c, request.FindOrderById{OrderId: orderId})
 	if err != nil {
+
+		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    fmt.Sprintf("order with id=%s and not found", orderId.String()),
 		})
 		return
 	}
-	logger.Info().Any(log.KeyOrders, orders).Msg("found orders")
+	logger = logger.With().Any(log.KeyOrders, orders).Logger()
+	logger.Info().Msg("found orders")
 
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "found orders",
@@ -164,36 +87,157 @@ func (s *OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	c, span := otel.Tracer.Start(r.Context(), "OrderController FindOrders")
 	defer span.End()
 
-	userId := r.URL.Query().Get("userId")
-	orderId := r.URL.Query().Get("orderId")
-
 	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KeyTag, "OrderController FindOrders").
 		Str(log.KeyProcess, "finding orders").
-		Str(log.KeyUserID, userId).
-		Str(log.KeyOrderID, orderId).
 		Logger()
-	c = logger.WithContext(c)
 
-	logger.Info().Msg("finding orders")
-	orders, err := s.service.FindOrders(c, request.FindOrders{OrderId: orderId, UserId: userId})
+	logger = logger.With().Str(log.KeyProcess, "validating userId and orderId").Logger()
+	logger.Info().Msg("validating userId")
+	userId, err := uuid.Parse(r.URL.Query().Get("userId"))
 	if err != nil {
-		response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		err = fmt.Errorf("failed validating userId=%s with error=%w", userId.String(), err)
+		commonErrors.HandleError(err, span)
+		logger.Error().Err(err).Msg(err.Error())
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
-			"message":    fmt.Sprintf("order with id=%s and userId=%s not found", orderId, userId),
+			"message":    err.Error(),
+		})
+		return
+	}
+	logger.Info().Msg("validated userId")
+
+	logger.Info().Msg("validating orderId")
+	orderId, err := uuid.Parse(r.URL.Query().Get("orderId"))
+	if err != nil {
+		err = fmt.Errorf("failed validating orderId=%s with error=%w", orderId.String(), err)
+		commonErrors.HandleError(err, span)
+		logger.Error().Err(err).Msg(err.Error())
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			"status":     "failed",
+			"statusCode": http.StatusBadRequest,
+			"message":    err.Error(),
+		})
+		return
+	}
+	logger = logger.With().
+		Str(log.KeyOrderID, orderId.String()).
+		Str(log.KeyUserID, userId.String()).
+		Logger()
+	logger.Info().Msg("validated orderId")
+
+	logger = logger.With().Str(log.KeyProcess, "finding orders").Logger()
+	logger.Info().Msg("finding orders")
+	c = logger.WithContext(c)
+	orders, err := s.service.FindOrders(c, request.FindOrders{OrderId: orderId, UserId: userId})
+	if err != nil {
+		err = fmt.Errorf("failed finding orders with error=%w", err)
+		commonErrors.HandleError(err, span)
+		logger.Error().Err(err).Msg(err.Error())
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			"status":     "failed",
+			"statusCode": http.StatusBadRequest,
+			"message":    err.Error(),
 		})
 		return
 	}
 	logger.Info().Any(log.KeyOrders, orders).Msg("found orders")
 
-	response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "found orders",
 		"data": map[string]interface{}{
 			"orders": orders,
+		},
+	})
+}
+
+func (s *OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) {
+	c, span := otel.Tracer.Start(r.Context(), "OrderController CreateOrder")
+	defer span.End()
+
+	logger := zerolog.Ctx(c).
+		With().
+		Str(log.KeyTag, "OrderController CreateOrder").
+		Logger()
+
+	logger = logger.With().Str(log.KeyProcess, "getting userId from jwtToken").Logger()
+	logger.Info().Msg("getting userId from jwtToken")
+	userId, err := common.UserIdFromJwtToken(c)
+	if err != nil {
+		err = fmt.Errorf("failed getting userId from jwtToken with error=%w", err)
+		commonErrors.HandleError(err, span)
+		logger.Error().Err(err).Msg(err.Error())
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			"status":     "failed",
+			"statusCode": http.StatusBadRequest,
+			"message":    err.Error(),
+		})
+		return
+	}
+	logger = logger.With().Str(log.KeyUserID, userId.String()).Logger()
+	logger.Info().Msgf("got userId=%s", userId.String())
+
+	logger = logger.With().Str(log.KeyProcess, "decoding request body").Logger()
+	logger.Info().Msg("decoding request body")
+	param := commonRequest.CreateOrder{}
+	err = json.NewDecoder(r.Body).Decode(&param)
+	if err != nil {
+		err = fmt.Errorf("failed decoding request body with error=%w", err)
+		commonErrors.HandleError(err, span)
+		logger.Error().Err(err).Msg(err.Error())
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			"status":     "failed",
+			"statusCode": http.StatusBadRequest,
+			"message":    "request body is invalid",
+		})
+		return
+	}
+	logger.Info().Msg("decoded request body")
+
+	logger = logger.With().Str(log.KeyProcess, "validating request body").Logger()
+	logger.Info().Msg("validating request body")
+	validate := validator.New(validator.WithRequiredStructEnabled())
+	err = validate.StructCtx(c, param)
+	if err != nil {
+		err = fmt.Errorf("failed decoding request body with error=%w", err)
+		commonErrors.HandleError(err, span)
+		logger.Error().Err(err).Msg(err.Error())
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			"status":     "failed",
+			"statusCode": http.StatusBadRequest,
+			"message":    "request body is invalid",
+		})
+		return
+	}
+	logger.Info().Msg("validated request body")
+
+	logger = logger.With().Str(log.KeyProcess, "creating order").Logger()
+	logger.Info().Msg("creating order")
+	c = logger.WithContext(c)
+	order, err := s.service.CreateOrder(c, param)
+	if err != nil {
+		err = fmt.Errorf("failed creating order with error=%w", err)
+		commonErrors.HandleError(err, span)
+		logger.Error().Err(err).Msg(err.Error())
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			"status":     "failed",
+			"statusCode": http.StatusInternalServerError,
+			"message":    err.Error(),
+		})
+		return
+	}
+	logger.Info().Msg("created order")
+
+	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		"status":     "success",
+		"statusCode": http.StatusOK,
+		"message":    "order created",
+		"data": map[string]interface{}{
+			"order": order,
 		},
 	})
 }
