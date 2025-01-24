@@ -12,11 +12,11 @@ import (
 
 type Querier interface {
 	DeleteOrderItemFromOrdersById(ctx context.Context, id uuid.UUID) (OrderItem, error)
-	FindOrderById(ctx context.Context, id uuid.UUID) (Order, error)
-	FindOrderByIdAndUserId(ctx context.Context, arg FindOrderByIdAndUserIdParams) ([]Order, error)
+	FindOrderById(ctx context.Context, arg FindOrderByIdParams) (FindOrderByIdRow, error)
 	FindOrderByUserId(ctx context.Context, userID uuid.UUID) ([]Order, error)
 	FindOrderItemById(ctx context.Context, id uuid.UUID) ([]OrderItem, error)
 	FindOrderItemByIdAndUserId(ctx context.Context, arg FindOrderItemByIdAndUserIdParams) ([]OrderItem, error)
+	FindOrderUserId(ctx context.Context, id uuid.UUID) ([]Order, error)
 	InsertOrder(ctx context.Context, arg InsertOrderParams) (Order, error)
 	InsertOrderItem(ctx context.Context, arg []InsertOrderItemParams) (int64, error)
 }

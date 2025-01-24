@@ -13,7 +13,8 @@ import (
 )
 
 const deleteOrderItemFromOrdersById = `-- name: DeleteOrderItemFromOrdersById :one
-delete from order_items where id = $1 returning id, order_id, product_id, quantity, price, created_at, updated_at
+delete from order_items
+where id = $1 returning id, order_id, product_id, quantity, price, created_at, updated_at
 `
 
 func (q *Queries) DeleteOrderItemFromOrdersById(ctx context.Context, id uuid.UUID) (OrderItem, error) {
@@ -32,64 +33,47 @@ func (q *Queries) DeleteOrderItemFromOrdersById(ctx context.Context, id uuid.UUI
 }
 
 const findOrderById = `-- name: FindOrderById :one
-select o.id, o.user_id, o.created_at, o.updated_at
-from orders as o
+select
+    o.id, o.user_id, o.status, o.created_at, o.updated_at,
+    json_agg(to_json(oi.*)) as order_items
+from users as u
+inner join orders as o on u.id = o.user_id
 inner join order_items as oi on o.id = oi.order_id
-where o.id = $1
+where u.id = $1 and o.id = $2
+group by o.id, o.user_id, o.created_at, o.updated_at
 `
 
-func (q *Queries) FindOrderById(ctx context.Context, id uuid.UUID) (Order, error) {
-	row := q.db.QueryRow(ctx, findOrderById, id)
-	var i Order
+type FindOrderByIdParams struct {
+	ID   uuid.UUID `db:"id" json:"id"`
+	ID_2 uuid.UUID `db:"id_2" json:"id_2"`
+}
+
+type FindOrderByIdRow struct {
+	ID         uuid.UUID          `db:"id" json:"id"`
+	UserID     uuid.UUID          `db:"user_id" json:"user_id"`
+	Status     OrderStatus        `db:"status" json:"status"`
+	CreatedAt  pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	OrderItems []byte             `db:"order_items" json:"order_items"`
+}
+
+func (q *Queries) FindOrderById(ctx context.Context, arg FindOrderByIdParams) (FindOrderByIdRow, error) {
+	row := q.db.QueryRow(ctx, findOrderById, arg.ID, arg.ID_2)
+	var i FindOrderByIdRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
+		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrderItems,
 	)
 	return i, err
 }
 
-const findOrderByIdAndUserId = `-- name: FindOrderByIdAndUserId :many
-select o.id, o.user_id, o.created_at, o.updated_at
-from orders as o
-inner join order_items as oi on o.id = oi.order_id
-where
-    id = coalesce(nullif($1, ''), $1, id) and user_id = coalesce(nullif($2, ''), $2, user_id)
-`
-
-type FindOrderByIdAndUserIdParams struct {
-	Column1 interface{} `json:"column_1"`
-	Column2 interface{} `json:"column_2"`
-}
-
-func (q *Queries) FindOrderByIdAndUserId(ctx context.Context, arg FindOrderByIdAndUserIdParams) ([]Order, error) {
-	rows, err := q.db.Query(ctx, findOrderByIdAndUserId, arg.Column1, arg.Column2)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Order
-	for rows.Next() {
-		var i Order
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const findOrderByUserId = `-- name: FindOrderByUserId :many
-select id, user_id, created_at, updated_at from orders where user_id = $1
+select id, user_id, status, created_at, updated_at from orders
+where user_id = $1
 `
 
 func (q *Queries) FindOrderByUserId(ctx context.Context, userID uuid.UUID) ([]Order, error) {
@@ -104,6 +88,7 @@ func (q *Queries) FindOrderByUserId(ctx context.Context, userID uuid.UUID) ([]Or
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
+			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -118,10 +103,8 @@ func (q *Queries) FindOrderByUserId(ctx context.Context, userID uuid.UUID) ([]Or
 }
 
 const findOrderItemById = `-- name: FindOrderItemById :many
-select oi.id, oi.order_id, oi.product_id, oi.quantity, oi.price, oi.created_at, oi.updated_at
-from orders as o
-inner join order_items as oi on o.id = oi.order_id
-where o.id = $1
+select id, order_id, product_id, quantity, price, created_at, updated_at from order_items
+where id = $1
 `
 
 func (q *Queries) FindOrderItemById(ctx context.Context, id uuid.UUID) ([]OrderItem, error) {
@@ -161,8 +144,8 @@ where
 `
 
 type FindOrderItemByIdAndUserIdParams struct {
-	Column1 interface{} `json:"column_1"`
-	Column2 interface{} `json:"column_2"`
+	Column1 interface{} `db:"column_1" json:"column_1"`
+	Column2 interface{} `db:"column_2" json:"column_2"`
 }
 
 func (q *Queries) FindOrderItemByIdAndUserId(ctx context.Context, arg FindOrderItemByIdAndUserIdParams) ([]OrderItem, error) {
@@ -193,13 +176,46 @@ func (q *Queries) FindOrderItemByIdAndUserId(ctx context.Context, arg FindOrderI
 	return items, nil
 }
 
+const findOrderUserId = `-- name: FindOrderUserId :many
+select o.id, o.user_id, o.status, o.created_at, o.updated_at
+from users as u
+inner join orders as o on u.id = o.user_id
+where u.id = $1
+`
+
+func (q *Queries) FindOrderUserId(ctx context.Context, id uuid.UUID) ([]Order, error) {
+	rows, err := q.db.Query(ctx, findOrderUserId, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Order
+	for rows.Next() {
+		var i Order
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertOrder = `-- name: InsertOrder :one
-insert into orders (id, user_id) values ($1, $2) returning id, user_id, created_at, updated_at
+insert into orders (id, user_id) values ($1, $2) returning id, user_id, status, created_at, updated_at
 `
 
 type InsertOrderParams struct {
-	ID     uuid.UUID `json:"id"`
-	UserID uuid.UUID `json:"user_id"`
+	ID     uuid.UUID `db:"id" json:"id"`
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
 func (q *Queries) InsertOrder(ctx context.Context, arg InsertOrderParams) (Order, error) {
@@ -208,6 +224,7 @@ func (q *Queries) InsertOrder(ctx context.Context, arg InsertOrderParams) (Order
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
+		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -215,8 +232,8 @@ func (q *Queries) InsertOrder(ctx context.Context, arg InsertOrderParams) (Order
 }
 
 type InsertOrderItemParams struct {
-	OrderID   uuid.UUID      `json:"order_id"`
-	ProductID uuid.UUID      `json:"product_id"`
-	Quantity  int32          `json:"quantity"`
-	Price     pgtype.Numeric `json:"price"`
+	OrderID   uuid.UUID      `db:"order_id" json:"order_id"`
+	ProductID uuid.UUID      `db:"product_id" json:"product_id"`
+	Quantity  int32          `db:"quantity" json:"quantity"`
+	Price     pgtype.Numeric `db:"price" json:"price"`
 }
