@@ -1,4 +1,4 @@
-package response
+package http
 
 import (
 	"context"
@@ -8,7 +8,8 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/Alturino/ecommerce/internal/otel/trace"
+	"github.com/Alturino/ecommerce/internal/common/errors"
+	"github.com/Alturino/ecommerce/internal/common/otel"
 )
 
 func WriteJsonResponse(
@@ -17,10 +18,10 @@ func WriteJsonResponse(
 	header map[string]string,
 	body map[string]interface{},
 ) {
-	c, span := trace.Tracer.Start(c, "WriteJsonResponse")
+	c, span := otel.Tracer.Start(c, "WriteJsonResponse")
 	defer span.End()
 
-	logger := zerolog.Ctx(c)
+	logger := zerolog.Ctx(c).With().Str("tag", "WriteJsonResponse").Logger()
 
 	w.Header().Add(HeaderContentType, HeaderValueJson)
 
@@ -40,9 +41,10 @@ func WriteJsonResponse(
 
 	err := json.NewEncoder(w).Encode(body)
 	if err != nil {
-		logger.Error().
-			Err(err).
-			Msgf("failed encode response body with error=%s", err.Error())
+		
+errors.HandleError(err, span)
+logger.Error().Err(err).Msg(err.Error())
+
 		return
 	}
 }
