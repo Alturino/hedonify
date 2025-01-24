@@ -12,27 +12,41 @@ import (
 )
 
 type Application struct {
-	Host      string `mapstructure:"host"`
-	SecretKey string `mapstructure:"secretkey"`
-	Port      int    `mapstructure:"port"`
+	Host      string `mapstructure:"host"      json:"host"`
+	SecretKey string `mapstructure:"secretkey" json:"secret_key"`
+	Port      int    `mapstructure:"port"      json:"port"`
 }
 
 type Database struct {
-	DbName         string `mapstructure:"name"`
-	Host           string `mapstructure:"host"`
-	MigrationPath  string `mapstructure:"migration_path"`
-	Password       string `mapstructure:"password"`
-	TimeZone       string `mapstructure:"timezone"`
-	Username       string `mapstructure:"username"`
-	Port           uint16 `mapstructure:"port"`
-	MaxConnections byte   `mapstructure:"max_connections"`
-	MinConnections byte   `mapstructure:"min_connections"`
+	Name           string `mapstructure:"name"            json:"name"`
+	Host           string `mapstructure:"host"            json:"host"`
+	MigrationPath  string `mapstructure:"migration_path"  json:"migration_path"`
+	Password       string `mapstructure:"password"        json:"password"`
+	TimeZone       string `mapstructure:"timezone"        json:"timezone"`
+	Username       string `mapstructure:"username"        json:"username"`
+	MaxConnections int    `mapstructure:"max_connections" json:"max_connections"`
+	MinConnections int    `mapstructure:"min_connections" json:"min_connections"`
+	Port           uint16 `mapstructure:"port"            json:"port"`
+}
+
+type Cache struct {
+	Host     string `mapstructure:"host"     json:"host"`
+	Password string `mapstructure:"password" json:"password"`
+	Database int    `mapstructure:"database" json:"database"`
+	Port     uint16 `mapstructure:"port"     json:"port"`
+}
+
+type Otel struct {
+	Host string `mapstructure:"host" json:"host"`
+	Port int    `mapstructure:"port" json:"port"`
 }
 
 type Config struct {
-	Env         string `mapstructure:"env"`
-	Database    `mapstructure:"db"`
-	Application `mapstructure:"application"`
+	Env         string `mapstructure:"env"         json:"env"`
+	Database    `       mapstructure:"db"          json:"db"`
+	Cache       `       mapstructure:"cache"       json:"cache"`
+	Application `       mapstructure:"application" json:"application"`
+	Otel        `       mapstructure:"otel"        json:"otel"`
 }
 
 var (
