@@ -12,19 +12,58 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const findProductByIdOrName = `-- name: FindProductByIdOrName :many
-select id, name, price, quantity, created_at, updated_at
-from products
-where id = $1 or name ilike '%' || $2::text || '%'
+const deleteProduct = `-- name: DeleteProduct :one
+delete from products
+where id = $1 returning id, name, price, quantity, created_at, updated_at
 `
 
-type FindProductByIdOrNameParams struct {
-	ID      uuid.UUID `json:"id"`
-	Column2 string    `json:"column_2"`
+func (q *Queries) DeleteProduct(ctx context.Context, id uuid.UUID) (Product, error) {
+	row := q.db.QueryRow(ctx, deleteProduct, id)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Price,
+		&i.Quantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
-func (q *Queries) FindProductByIdOrName(ctx context.Context, arg FindProductByIdOrNameParams) ([]Product, error) {
-	rows, err := q.db.Query(ctx, findProductByIdOrName, arg.ID, arg.Column2)
+const findProductById = `-- name: FindProductById :one
+select id, name, price, quantity, created_at, updated_at from products
+where id = $1
+`
+
+func (q *Queries) FindProductById(ctx context.Context, id uuid.UUID) (Product, error) {
+	row := q.db.QueryRow(ctx, findProductById, id)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Price,
+		&i.Quantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const findProducts = `-- name: FindProducts :many
+select id, name, price, quantity, created_at, updated_at
+from products
+where name like '%' | $1::text | '%' and price >= $2 and price <= $3
+`
+
+type FindProductsParams struct {
+	Column1 string         `db:"column_1" json:"column_1"`
+	Price   pgtype.Numeric `db:"price" json:"price"`
+	Price_2 pgtype.Numeric `db:"price_2" json:"price_2"`
+}
+
+func (q *Queries) FindProducts(ctx context.Context, arg FindProductsParams) ([]Product, error) {
+	rows, err := q.db.Query(ctx, findProducts, arg.Column1, arg.Price, arg.Price_2)
 	if err != nil {
 		return nil, err
 	}
@@ -82,19 +121,72 @@ func (q *Queries) GetProducts(ctx context.Context) ([]Product, error) {
 }
 
 const insertProduct = `-- name: InsertProduct :one
-insert into products (name, price, quantity) values (
-    $1, $2, $3
-) returning id, name, price, quantity, created_at, updated_at
+insert into products (name, price, quantity) values ($1, $2, $3) returning id, name, price, quantity, created_at, updated_at
 `
 
 type InsertProductParams struct {
-	Name     string         `json:"name"`
-	Price    pgtype.Numeric `json:"price"`
-	Quantity int32          `json:"quantity"`
+	Name     string         `db:"name" json:"name"`
+	Price    pgtype.Numeric `db:"price" json:"price"`
+	Quantity int32          `db:"quantity" json:"quantity"`
 }
 
 func (q *Queries) InsertProduct(ctx context.Context, arg InsertProductParams) (Product, error) {
 	row := q.db.QueryRow(ctx, insertProduct, arg.Name, arg.Price, arg.Quantity)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Price,
+		&i.Quantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateProduct = `-- name: UpdateProduct :one
+update products set name = $1, price = $2, quantity = $3, updated_at = now()
+where id = $4 returning id, name, price, quantity, created_at, updated_at
+`
+
+type UpdateProductParams struct {
+	Name     string         `db:"name" json:"name"`
+	Price    pgtype.Numeric `db:"price" json:"price"`
+	Quantity int32          `db:"quantity" json:"quantity"`
+	ID       uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (Product, error) {
+	row := q.db.QueryRow(ctx, updateProduct,
+		arg.Name,
+		arg.Price,
+		arg.Quantity,
+		arg.ID,
+	)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Price,
+		&i.Quantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateProductQuantity = `-- name: UpdateProductQuantity :one
+update products set quantity = $2
+where id = $1 returning id, name, price, quantity, created_at, updated_at
+`
+
+type UpdateProductQuantityParams struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	Quantity int32     `db:"quantity" json:"quantity"`
+}
+
+func (q *Queries) UpdateProductQuantity(ctx context.Context, arg UpdateProductQuantityParams) (Product, error) {
+	row := q.db.QueryRow(ctx, updateProductQuantity, arg.ID, arg.Quantity)
 	var i Product
 	err := row.Scan(
 		&i.ID,

@@ -5,15 +5,107 @@
 package repository
 
 import (
+	"database/sql/driver"
+	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type OrderStatus string
+
+const (
+	OrderStatusWAITINGPAYMENT OrderStatus = "WAITING_PAYMENT"
+	OrderStatusSHIPPING       OrderStatus = "SHIPPING"
+	OrderStatusCOMPLETED      OrderStatus = "COMPLETED"
+	OrderStatusEXPIRED        OrderStatus = "EXPIRED"
+	OrderStatusCANCELLED      OrderStatus = "CANCELLED"
+)
+
+func (e *OrderStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OrderStatus(s)
+	case string:
+		*e = OrderStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OrderStatus: %T", src)
+	}
+	return nil
+}
+
+type NullOrderStatus struct {
+	OrderStatus OrderStatus `json:"order_status"`
+	Valid       bool        `json:"valid"` // Valid is true if OrderStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOrderStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.OrderStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OrderStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOrderStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OrderStatus), nil
+}
+
+type Cart struct {
+	ID        uuid.UUID          `db:"id" json:"id"`
+	UserID    uuid.UUID          `db:"user_id" json:"user_id"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type CartItem struct {
+	ID        uuid.UUID          `db:"id" json:"id"`
+	CartID    uuid.UUID          `db:"cart_id" json:"cart_id"`
+	ProductID uuid.UUID          `db:"product_id" json:"product_id"`
+	Quantity  int32              `db:"quantity" json:"quantity"`
+	Price     pgtype.Numeric     `db:"price" json:"price"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type Order struct {
+	ID        uuid.UUID          `db:"id" json:"id"`
+	UserID    uuid.UUID          `db:"user_id" json:"user_id"`
+	Status    OrderStatus        `db:"status" json:"status"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type OrderItem struct {
+	ID        uuid.UUID          `db:"id" json:"id"`
+	OrderID   uuid.UUID          `db:"order_id" json:"order_id"`
+	ProductID uuid.UUID          `db:"product_id" json:"product_id"`
+	Quantity  int32              `db:"quantity" json:"quantity"`
+	Price     pgtype.Numeric     `db:"price" json:"price"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type Product struct {
-	ID        uuid.UUID        `json:"id"`
-	Name      string           `json:"name"`
-	Price     pgtype.Numeric   `json:"price"`
-	Quantity  int32            `json:"quantity"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+	ID        uuid.UUID          `db:"id" json:"id"`
+	Name      string             `db:"name" json:"name"`
+	Price     pgtype.Numeric     `db:"price" json:"price"`
+	Quantity  int32              `db:"quantity" json:"quantity"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type User struct {
+	ID        uuid.UUID          `db:"id" json:"id"`
+	Username  string             `db:"username" json:"username"`
+	Email     string             `db:"email" json:"email"`
+	Password  string             `db:"password" json:"password"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
