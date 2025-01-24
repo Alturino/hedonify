@@ -1,47 +1,71 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/rs/zerolog"
 
 	"github.com/Alturino/ecommerce/internal/common"
-	inErrors "github.com/Alturino/ecommerce/internal/common/errors"
-	"github.com/Alturino/ecommerce/internal/common/response"
+	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
+	commonHttp "github.com/Alturino/ecommerce/internal/common/http"
+	"github.com/Alturino/ecommerce/internal/common/otel"
 	"github.com/Alturino/ecommerce/internal/log"
 )
 
 func Auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger := zerolog.Ctx(r.Context()).With().Str(log.KeyTag, "middleware auth").Logger()
-		c := logger.WithContext(r.Context())
+		c, span := otel.Tracer.Start(r.Context(), "Auth")
+		defer span.End()
 
 		authorization := r.Header.Get("Authorization")
-		if authorization == "" {
-			logger.Error().
-				Err(inErrors.ErrEmptyAuth).
-				Msg(inErrors.ErrEmptyAuth.Error())
-			response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
-				"status":     "failed",
-				"statusCode": http.StatusUnauthorized,
-				"message":    inErrors.ErrEmptyAuth.Error(),
-			})
-			return
-		}
 
-		token := authorization[len("bearer "):]
-		err := common.VerifyToken(r.Context(), token)
-		if err != nil {
-			logger.Error().
-				Err(inErrors.ErrEmptySubject).
-				Msg(inErrors.ErrEmptySubject.Error())
-			response.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		logger := zerolog.Ctx(c).
+			With().
+			Str(log.KeyTag, "middleware Auth").
+			Logger()
+
+		if authorization == "" {
+			err := fmt.Errorf(
+				"failed checking authorization header with error=%w",
+				commonErrors.ErrEmptyAuth,
+			)
+			commonErrors.HandleError(err, span)
+			logger.Error().Err(err).Msg(err.Error())
+			commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 				"status":     "failed",
 				"statusCode": http.StatusUnauthorized,
-				"message":    inErrors.ErrTokenInvalid.Error(),
+				"message":    commonErrors.ErrEmptyAuth.Error(),
 			})
 			return
 		}
+		logger.Info().Msg("authorization header checked")
+
+		logger = logger.With().Str(log.KeyProcess, "verifying token").Logger()
+		logger.Info().Msg("verifying token")
+		token := strings.Split(authorization, " ")[1]
+		c = logger.WithContext(c)
+		jwt, err := common.VerifyToken(c, token)
+		if err != nil {
+			err = fmt.Errorf("failed verifying token with error=%w", err)
+			commonErrors.HandleError(err, span)
+			logger.Error().Err(err).Msg(err.Error())
+			commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+				"status":     "failed",
+				"statusCode": http.StatusUnauthorized,
+				"message":    commonErrors.ErrTokenInvalid.Error(),
+			})
+			return
+		}
+		logger.Info().Msg("verified token")
+
+		logger = logger.With().Str(log.KeyProcess, "attaching jwt token to context").Logger()
+		logger.Info().Msg("attaching jwt token to context")
+		c = common.AttachJwtToken(c, jwt)
+		c = logger.WithContext(c)
+		r = r.WithContext(c)
+		logger.Info().Msg("attached jwt token to context")
 
 		next.ServeHTTP(w, r)
 	})
