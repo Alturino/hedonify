@@ -18,10 +18,10 @@ import (
 	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/config"
 	"github.com/Alturino/ecommerce/internal/log"
+	"github.com/Alturino/ecommerce/internal/repository"
 	"github.com/Alturino/ecommerce/user/internal/common/cache"
 	userErrors "github.com/Alturino/ecommerce/user/internal/common/errors"
 	userOtel "github.com/Alturino/ecommerce/user/internal/common/otel"
-	"github.com/Alturino/ecommerce/user/internal/repository"
 	"github.com/Alturino/ecommerce/user/internal/request"
 )
 

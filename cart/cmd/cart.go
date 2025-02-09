@@ -14,7 +14,6 @@ import (
 
 	commonOtel "github.com/Alturino/ecommerce/cart/internal/common/otel"
 	"github.com/Alturino/ecommerce/cart/internal/controller"
-	"github.com/Alturino/ecommerce/cart/internal/repository"
 	"github.com/Alturino/ecommerce/cart/internal/service"
 	"github.com/Alturino/ecommerce/internal/common/constants"
 	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
@@ -23,6 +22,7 @@ import (
 	"github.com/Alturino/ecommerce/internal/log"
 	"github.com/Alturino/ecommerce/internal/middleware"
 	"github.com/Alturino/ecommerce/internal/otel"
+	"github.com/Alturino/ecommerce/internal/repository"
 )
 
 func RunCartService(c context.Context) {

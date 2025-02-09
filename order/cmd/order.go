@@ -18,9 +18,9 @@ import (
 	"github.com/Alturino/ecommerce/internal/log"
 	"github.com/Alturino/ecommerce/internal/middleware"
 	"github.com/Alturino/ecommerce/internal/otel"
+	"github.com/Alturino/ecommerce/internal/repository"
 	commonOtel "github.com/Alturino/ecommerce/order/internal/common/otel"
 	"github.com/Alturino/ecommerce/order/internal/controller"
-	"github.com/Alturino/ecommerce/order/internal/repository"
 	"github.com/Alturino/ecommerce/order/internal/service"
 )
 

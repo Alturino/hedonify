@@ -20,12 +20,12 @@ import (
 
 	"github.com/Alturino/ecommerce/cart/internal/common/cache"
 	"github.com/Alturino/ecommerce/cart/internal/common/otel"
-	"github.com/Alturino/ecommerce/cart/internal/repository"
 	"github.com/Alturino/ecommerce/cart/request"
 	"github.com/Alturino/ecommerce/cart/response"
 	"github.com/Alturino/ecommerce/internal/common/constants"
 	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/log"
+	"github.com/Alturino/ecommerce/internal/repository"
 )
 
 type CartService struct {

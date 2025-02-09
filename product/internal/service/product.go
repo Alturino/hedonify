@@ -12,9 +12,9 @@ import (
 
 	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/log"
+	"github.com/Alturino/ecommerce/internal/repository"
 	"github.com/Alturino/ecommerce/product/internal/common/cache"
 	"github.com/Alturino/ecommerce/product/internal/common/otel"
-	"github.com/Alturino/ecommerce/product/internal/repository"
 	"github.com/Alturino/ecommerce/product/request"
 	"github.com/Alturino/ecommerce/product/response"
 )

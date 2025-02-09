@@ -29,9 +29,9 @@ import (
 	"github.com/Alturino/ecommerce/internal/otel"
 	orderRequest "github.com/Alturino/ecommerce/order/pkg/request"
 	"github.com/Alturino/ecommerce/product/internal/common/cache"
+	"github.com/Alturino/ecommerce/internal/repository"
 	commonOtel "github.com/Alturino/ecommerce/product/internal/common/otel"
 	"github.com/Alturino/ecommerce/product/internal/controller"
-	"github.com/Alturino/ecommerce/product/internal/repository"
 	"github.com/Alturino/ecommerce/product/internal/service"
 )
 
