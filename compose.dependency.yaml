@@ -36,6 +36,43 @@ services:
       - .env
     ports:
       - ${REDIS_PORT}:${REDIS_PORT}
+  redis-exporter:
+    container_name: redis-exporter
+    image: oliver006/redis_exporter:v1.67.0-alpine
+    restart: always
+    command:
+      [
+        "--redis.addr",
+        "redis://${REDIS_HOST}:${REDIS_PASSWORD}",
+        "--redis.user",
+        "${REDIS_USER}",
+        "--redis.password",
+        "${REDIS_PASSWORD}",
+      ]
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - redis
+      - logging
+    ports:
+      - 9121:9121
+  postgres-exporter:
+    container_name: postgres-exporter
+    image: prometheuscommunity/postgres-exporter:v0.16.0
+    env_file:
+      - .env
+    environment:
+      - DATA_SOURCE_NAME=${POSTGRES_URL}
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - postgres
+      - logging
+    ports:
+      - 9187:9187
   nginx:
     container_name: nginx
     image: nginx:1.27.3-alpine-slim
