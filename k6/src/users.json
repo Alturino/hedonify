@@ -1,0 +1,12 @@
+[
+  { "email": "user1@test.com", "password": "password" },
+  { "email": "user2@test.com", "password": "password" },
+  { "email": "user3@test.com", "password": "password" },
+  { "email": "user4@test.com", "password": "password" },
+  { "email": "user5@test.com", "password": "password" },
+  { "email": "user6@test.com", "password": "password" },
+  { "email": "user7@test.com", "password": "password" },
+  { "email": "user8@test.com", "password": "password" },
+  { "email": "user9@test.com", "password": "password" },
+  { "email": "user10@test.com", "password": "password" }
+]
