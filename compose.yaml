@@ -29,12 +29,6 @@ services:
       - 8080
     ports:
       - 8080:8080
-    logging:
-      driver: loki
-      options:
-        loki-url: http://localhost:3100/loki/api/v1/push
-        loki-retries: 5
-        loki-batch-size: 1000
   notification-service:
     develop:
       watch:
@@ -62,12 +56,6 @@ services:
       - 8080
     ports:
       - 8081:8080
-    logging:
-      driver: loki
-      options:
-        loki-url: http://localhost:3100/loki/api/v1/push
-        loki-retries: 5
-        loki-batch-size: 1000
   order-service:
     develop:
       watch:
@@ -95,12 +83,6 @@ services:
       - 8080
     ports:
       - 8082:8080
-    logging:
-      driver: loki
-      options:
-        loki-url: http://localhost:3100/loki/api/v1/push
-        loki-retries: 5
-        loki-batch-size: 1000
   product-service:
     develop:
       watch:
@@ -114,8 +96,6 @@ services:
       context: .
     container_name: product-service
     command: ["./ecommerce", "product"]
-    expose:
-      - 8080
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,14 +106,10 @@ services:
       - postgres
       - redis
       - ecommerce
+    expose:
+      - 8080
     ports:
       - 8083:8080
-    logging:
-      driver: loki
-      options:
-        loki-url: http://localhost:3100/loki/api/v1/push
-        loki-retries: 5
-        loki-batch-size: 1000
   user-service:
     develop:
       watch:
@@ -161,12 +137,6 @@ services:
       - 8080
     ports:
       - 8085:8080
-    logging:
-      driver: loki
-      options:
-        loki-url: http://localhost:3100/loki/api/v1/push
-        loki-retries: 5
-        loki-batch-size: 1000
 networks:
   ecommerce:
     name: ecommerce

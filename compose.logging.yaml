@@ -19,15 +19,30 @@ services:
       - logging
   loki:
     container_name: loki
-    image: grafana/loki:2.9.2
+    image: grafana/loki:3.3.2
     ports:
       - 3100:3100
     command: ["-config.file=/etc/loki/loki.yaml", "-config.expand-env=true"]
     volumes:
       - ./observability/loki.yaml:/etc/loki/loki.yaml
+      - loki:/loki
     networks:
       - logging
     env_file: .env
+  promtail:
+    container_name: promtail
+    image: grafana/promtail:3.3.2
+    command: ["--config.file=/etc/promtail/promtail.yaml"]
+    depends_on:
+      - loki
+    ports:
+      - 9080:9080
+    networks:
+      - logging
+    volumes:
+      - ./observability/promtail.yaml:/etc/promtail/promtail.yaml
+      - promtail:/var/log
+      - /var/run/docker.sock:/var/run/docker.sock
   otel-collector:
     container_name: otel-collector
     image: otel/opentelemetry-collector-contrib:0.112.0
@@ -120,3 +135,7 @@ networks:
 volumes:
   prometheus:
     name: prometheus
+  loki:
+    name: loki
+  promtail:
+    name: promtail
