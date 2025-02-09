@@ -6,18 +6,18 @@ import (
 )
 
 type Cart struct {
-	CartItems []CartItem `validate:"required" json:"cartItems"`
+	CartItems []CartItem `validate:"required" json:"cart_items"`
 }
 
 type CartItem struct {
-	ProductId uuid.UUID       `validate:"required,uuid"  json:"productId"`
+	ProductId uuid.UUID       `validate:"required,uuid"  json:"product_id"`
 	Price     decimal.Decimal `validate:"required"       json:"price"`
 	Quantity  int32           `validate:"required,gte=1" json:"quantity"`
 }
 
 type RemoveCart struct {
 	ID     uuid.UUID `validate:"required, uuid" json:"id"`
-	UserId uuid.UUID `validate:"required, uuid" json:"userId"`
+	UserId uuid.UUID `validate:"required, uuid" json:"user_id"`
 }
 
 type RemoveCartItem struct {

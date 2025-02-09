@@ -1,6 +1,8 @@
 package request
 
-import "github.com/shopspring/decimal"
+import (
+	"github.com/shopspring/decimal"
+)
 
 type Product struct {
 	Name     string          `validate:"required" json:"name"`
@@ -10,6 +12,6 @@ type Product struct {
 
 type FindProduct struct {
 	Name     string
-	MinPrice decimal.Decimal `validate:"numeric"`
-	MaxPrice decimal.Decimal `validate:"numeric"`
+	MinPrice *decimal.Decimal `validate:"numeric"`
+	MaxPrice *decimal.Decimal `validate:"numeric"`
 }

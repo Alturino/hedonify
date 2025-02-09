@@ -12,7 +12,7 @@ import (
 
 	"github.com/Alturino/ecommerce/cart/internal/common/otel"
 	"github.com/Alturino/ecommerce/cart/internal/service"
-	"github.com/Alturino/ecommerce/cart/request"
+	"github.com/Alturino/ecommerce/cart/pkg/request"
 	"github.com/Alturino/ecommerce/internal/common"
 	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	commonHttp "github.com/Alturino/ecommerce/internal/common/http"

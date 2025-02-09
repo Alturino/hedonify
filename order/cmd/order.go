@@ -22,6 +22,7 @@ import (
 	commonOtel "github.com/Alturino/ecommerce/order/internal/common/otel"
 	"github.com/Alturino/ecommerce/order/internal/controller"
 	"github.com/Alturino/ecommerce/order/internal/service"
+	"github.com/Alturino/ecommerce/order/pkg/request"
 )
 
 func RunOrderService(c context.Context) {

@@ -22,7 +22,7 @@ import (
 	"github.com/Alturino/ecommerce/user/internal/common/cache"
 	userErrors "github.com/Alturino/ecommerce/user/internal/common/errors"
 	userOtel "github.com/Alturino/ecommerce/user/internal/common/otel"
-	"github.com/Alturino/ecommerce/user/internal/request"
+	"github.com/Alturino/ecommerce/user/pkg/request"
 )
 
 type UserService struct {

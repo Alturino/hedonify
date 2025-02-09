@@ -1,8 +1,6 @@
 package response
 
-import (
-	"github.com/Alturino/ecommerce/order/pkg/request"
-)
+import "github.com/Alturino/ecommerce/order/pkg/request"
 
 func (c Cart) Order() request.CreateOrder {
 	orderItems := make([]request.OrderItem, len(c.CartItems))
@@ -11,6 +9,7 @@ func (c Cart) Order() request.CreateOrder {
 			ID:        item.ID,
 			Price:     item.Price,
 			ProductID: item.ProductID,
+			OrderID:   c.ID,
 			Quantity:  item.Quantity,
 			CreatedAt: item.CreatedAt,
 			UpdatedAt: item.UpdatedAt,
