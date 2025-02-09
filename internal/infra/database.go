@@ -11,11 +11,12 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/lib/pq"
 	"github.com/rs/zerolog"
+	pgxUUID "github.com/vgarvardt/pgx-google-uuid/v5"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
 	"github.com/Alturino/ecommerce/internal/common/otel"
@@ -65,6 +66,11 @@ func NewDatabaseClient(
 			logger.Fatal().Err(err).Msg(err.Error())
 		}
 		logger.Info().Msgf("initialized pgx config")
+
+		pgxConfig.AfterConnect = func(ctx context.Context, pgxConn *pgx.Conn) error {
+			pgxUUID.Register(pgxConn.TypeMap())
+			return nil
+		}
 
 		logger = logger.With().Str(log.KeyProcess, "attaching otel tracer to pgx").Logger()
 		logger.Info().Msgf("attaching otel tracer to pgx")

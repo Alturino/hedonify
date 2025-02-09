@@ -17,7 +17,7 @@ import (
 
 func Logging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestID := r.Header.Get("requestId")
+		requestID := r.Header.Get(log.KeyRequestID)
 		if requestID == "" {
 			requestID = uuid.NewString()
 		}
@@ -43,8 +43,8 @@ func Logging(next http.Handler) http.Handler {
 
 		logger := zerolog.Ctx(c).
 			With().
+			Str(log.KeyRequestID, requestID).
 			Dict(log.KeyRequest, zerolog.Dict().
-				Str(log.KeyRequestID, requestID).
 				Any(log.KeyRequestHeader, r.Header).
 				Str(log.KeyRequestHost, r.Host).
 				Str(log.KeyRequestIp, r.RemoteAddr).
