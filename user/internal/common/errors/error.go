@@ -3,6 +3,7 @@ package error
 import "errors"
 
 var (
-	ErrPasswordMismatch = errors.New("ErrPasswordMismatch")
-	ErrUserNotFound     = errors.New("ErrUserNotFound")
+	ErrPasswordMismatch = errors.New("password mismatch")
+	ErrUserNotFound     = errors.New("user not found")
+	ErrEmailExist       = errors.New("email already exist")
 )

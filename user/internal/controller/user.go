@@ -17,8 +17,8 @@ import (
 	"github.com/Alturino/ecommerce/internal/log"
 	userErrors "github.com/Alturino/ecommerce/user/internal/common/errors"
 	inOtel "github.com/Alturino/ecommerce/user/internal/common/otel"
-	"github.com/Alturino/ecommerce/user/internal/request"
 	"github.com/Alturino/ecommerce/user/internal/service"
+	"github.com/Alturino/ecommerce/user/pkg/request"
 )
 
 type UserController struct {
@@ -61,7 +61,8 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KeyProcess, "validating requestbody").Logger()
+	logger = logger.With().Str(log.KeyProcess, "validating.request_body").Logger()
+
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
 	logger.Info().Msg("initialized validator")
@@ -160,10 +161,16 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 	user, err := u.service.Register(c, reqBody)
 	if err != nil {
 		err = fmt.Errorf("failed registering user with error=%w", err)
-
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-
+		if errors.Is(err, userErrors.ErrEmailExist) {
+			commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+				"status":     "failed",
+				"statusCode": http.StatusConflict,
+				"message":    userErrors.ErrEmailExist.Error(),
+			})
+			return
+		}
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,

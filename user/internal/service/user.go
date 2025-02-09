@@ -46,62 +46,97 @@ func (u UserService) Login(
 	c, span := userOtel.Tracer.Start(c, "UserService Login")
 	defer span.End()
 
+	cacheKey := fmt.Sprintf(cache.LOGIN_USER, param.Email)
 	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KeyTag, "UserService Login").
 		Str(log.KeyEmail, param.Email).
+		Str(log.KeyCacheKey, cacheKey).
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "finding user by email").Logger()
-	logger.Info().Msg("finding user by email")
-	user, err := u.queries.FindByEmail(c, param.Email)
+	logger = logger.With().Str(log.KeyProcess, "getting token from cache").Logger()
+	logger.Info().Msg("getting token from cache")
+	span.AddEvent("getting token from cache")
+	signedToken, err := u.cache.Get(c, cacheKey).Result()
 	if err != nil {
-		err = errors.Join(err, userErrors.ErrUserNotFound)
-		err = fmt.Errorf("failed finding user by email=%s with error=%w", param.Email, err)
-		commonErrors.HandleError(err, span)
-		logger.Error().Err(err).Msg(err.Error())
-		return "", err
-	}
-	logger.Info().Msg("found user by email")
+		err = fmt.Errorf("failed getting token from cache with error=%w", err)
+		logger.Info().Err(err).Msg(err.Error())
+		span.AddEvent("failed getting token from cache")
 
-	logger = logger.With().Str(log.KeyProcess, "verifying hashed password with password").Logger()
-	logger.Info().Msg("verifying hashed password with password")
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(param.Password))
-	if err != nil {
-		err = errors.Join(err, userErrors.ErrPasswordMismatch)
-		err = fmt.Errorf("failed verifying hashed password and password with error=%w", err)
-		commonErrors.HandleError(err, span)
-		logger.Error().Err(err).Msg(err.Error())
-		return "", err
-	}
-	logger.Info().Msg("verified hashed password with password")
+		logger = logger.With().Str(log.KeyProcess, "finding user by email").Logger()
+		logger.Info().Msg("finding user by email")
+		span.AddEvent("finding user by email")
+		user, err := u.queries.FindByEmail(c, param.Email)
+		if err != nil {
+			err = errors.Join(err, userErrors.ErrUserNotFound)
+			err = fmt.Errorf("failed finding user by email=%s with error=%w", param.Email, err)
+			commonErrors.HandleError(err, span)
+			logger.Error().Err(err).Msg(err.Error())
+			return "", err
+		}
+		span.AddEvent("found user by email")
+		logger.Info().Msg("found user by email")
 
-	logger = logger.With().Str(log.KeyProcess, "creating login token").Logger()
-	logger.Info().Msg("creating login token")
-	tokenCreationTime := time.Now()
-	token := jwt.NewWithClaims(
-		jwt.SigningMethodHS256,
-		jwt.RegisteredClaims{
-			Audience:  jwt.ClaimStrings{constants.AudienceUser},
-			Issuer:    constants.AppUserService,
-			Subject:   user.ID.String(),
-			ExpiresAt: jwt.NewNumericDate(tokenCreationTime.Add(30 * time.Minute)),
-			IssuedAt:  jwt.NewNumericDate(tokenCreationTime),
-			ID:        uuid.NewString(),
-		},
-	)
-	logger.Info().Msg("created login token")
+		logger = logger.With().
+			Str(log.KeyProcess, "verifying hashed password with password").
+			Logger()
+		logger.Info().Msg("verifying hashed password with password")
+		span.AddEvent("verifying hashed password with password")
+		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(param.Password))
+		if err != nil {
+			err = errors.Join(err, userErrors.ErrPasswordMismatch)
+			err = fmt.Errorf("failed verifying hashed password and password with error=%w", err)
+			commonErrors.HandleError(err, span)
+			logger.Error().Err(err).Msg(err.Error())
+			return "", err
+		}
+		logger.Info().Msg("verified hashed password with password")
+		span.AddEvent("verified hashed password with password")
 
-	logger = logger.With().Str(log.KeyProcess, "signing token").Logger()
-	logger.Info().Msg("signing token")
-	signedToken, err := token.SignedString([]byte(u.config.SecretKey))
-	if err != nil {
-		err = fmt.Errorf("failed signing token with error=%w", err)
-		commonErrors.HandleError(err, span)
-		logger.Error().Err(err).Msg(err.Error())
-		return "", err
+		logger = logger.With().Str(log.KeyProcess, "creating login token").Logger()
+		span.AddEvent("creating login token")
+		logger.Info().Msg("creating login token")
+		tokenCreationTime := time.Now()
+		token := jwt.NewWithClaims(
+			jwt.SigningMethodHS256,
+			jwt.RegisteredClaims{
+				Audience:  jwt.ClaimStrings{constants.AudienceUser},
+				Issuer:    constants.AppUserService,
+				Subject:   user.ID.String(),
+				ExpiresAt: jwt.NewNumericDate(tokenCreationTime.Add(30 * time.Minute)),
+				IssuedAt:  jwt.NewNumericDate(tokenCreationTime),
+				ID:        uuid.NewString(),
+			},
+		)
+		logger.Info().Msg("created login token")
+		span.AddEvent("created login token")
+
+		logger = logger.With().Str(log.KeyProcess, "signing token").Logger()
+		logger.Info().Msg("signing token")
+		span.AddEvent("signing token")
+		signedToken, err = token.SignedString([]byte(u.config.SecretKey))
+		if err != nil {
+			err = fmt.Errorf("failed signing token with error=%w", err)
+			commonErrors.HandleError(err, span)
+			logger.Error().Err(err).Msg(err.Error())
+			return "", err
+		}
+		span.AddEvent("signed token")
+		logger.Info().Msg("signed token")
+
+		logger = logger.With().Str(log.KeyProcess, "inserting token to cache").Logger()
+		logger.Info().Msg("inserting token to cache")
+		span.AddEvent("inserting token to cache")
+		err = u.cache.SetEx(c, cacheKey, signedToken, 25*time.Minute).Err()
+		if err != nil {
+			err = fmt.Errorf("failed inserting token to cache with error=%w", err)
+			commonErrors.HandleError(err, span)
+			logger.Error().Err(err).Msg(err.Error())
+			return "", err
+		}
+		logger.Info().Msg("inserted token to cache")
+		span.AddEvent("inserted token to cache")
 	}
-	logger.Info().Msg("signed token")
 
 	return signedToken, nil
 }
@@ -119,18 +154,31 @@ func (svc UserService) Register(
 		Str(log.KeyEmail, param.Email).
 		Logger()
 
+	logger = logger.With().Str(log.KeyProcess, "checking if email exists").Logger()
+	logger.Info().Msg("checking if email exists")
+	span.AddEvent("checking if email exists")
+	_, err := svc.queries.FindByEmail(c, param.Email)
+	if err == nil {
+		err = userErrors.ErrEmailExist
+		commonErrors.HandleError(err, span)
+		logger.Error().Err(err).Msg(err.Error())
+		return repository.User{}, err
+	}
+	span.AddEvent("checked email not exist")
+	logger.Info().Msg("checked email not exist")
+
 	logger = logger.With().Str(log.KeyProcess, "hashing password").Logger()
+	span.AddEvent("hashing password")
 	logger.Info().Msg("hashing password")
 	hashed, err := bcrypt.GenerateFromPassword([]byte(param.Password), bcrypt.DefaultCost)
 	if err != nil {
 		err = errors.Join(err, commonErrors.ErrFailedHashToken)
 		err = fmt.Errorf("failed hashing password with error=%w", err)
-
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-
 		return repository.User{}, err
 	}
+	span.AddEvent("hashed password")
 	logger.Info().Msg("hashed password")
 
 	logger = logger.With().Str(log.KeyProcess, "inserting user to database").Logger()
@@ -154,7 +202,6 @@ func (svc UserService) Register(
 		err = fmt.Errorf("failed inserting user to database with error=%w", err)
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-
 		return repository.User{}, err
 	}
 	logger.Info().Msg("inserted user to database")
