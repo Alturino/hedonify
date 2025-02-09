@@ -1,0 +1,17 @@
+-- valid if it returns is_balanced true
+SELECT
+    oi.product_id,
+    p.quantity AS available_quantity,
+    sum(oi.quantity) AS ordered_quantity,
+    2000 - sum(oi.quantity) = p.quantity AS is_balanced
+FROM orders AS o
+INNER JOIN order_items AS oi ON o.id = oi.order_id
+INNER JOIN products AS p ON oi.product_id = p.id
+GROUP BY p.id, oi.product_id;
+
+-- valid if it returns no rows
+SELECT o.id
+FROM orders AS o
+LEFT JOIN order_items AS oi ON o.id = oi.order_id
+WHERE oi.order_id IS null
+GROUP BY o.id;
