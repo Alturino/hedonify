@@ -38,7 +38,7 @@ In multi-user e-commerce environments, a critical challenge arises when multiple
 
 ### Services Architecture
 
-![Services Architecture](./docs/diagrams/services.svg)
+![Services Architecture](./docs/diagrams/hedonify_architecture.excalidraw.svg)
 
 ## Order Creation
 
@@ -263,10 +263,20 @@ To ensure observability, we utilize both logging and tracing mechanisms. Logs ar
 
 - Docker
 - Docker Compose
+- Node.js
+- npm
+- k6
 
 ### Steps
 
 - To run the application, run `docker compose up --build -d`
+- To run the load test
+
+```bash
+cd k6
+npm run build
+k6 run ./dist/src/orderCreation.js -v
+```
 
 ## Things to Improve
 
@@ -281,3 +291,7 @@ To ensure observability, we utilize both logging and tracing mechanisms. Logs ar
 - Implement shipping
 - Implement merchant
     - Only merchant can add products
+
+## License
+
+This project is licensed under the [MIT License](LICENSE). Feel free to use, modify, and distribute the app's code following the terms of this license.
