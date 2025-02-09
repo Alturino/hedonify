@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -107,7 +108,9 @@ func RunOrderService(c context.Context) {
 
 	logger = logger.With().Str(log.KeyProcess, "initializing order controller").Logger()
 	logger.Info().Msg("initializing order controller")
-	controller.AttachOrderController(mux, orderService)
+	queue := make(chan request.CreateOrder, 1)
+	defer close(queue)
+	controller.AttachOrderController(mux, orderService, queue)
 	logger.Info().Msg("initializing order controller")
 
 	logger = logger.With().Str(log.KeyProcess, "initializing server").Logger()
@@ -146,13 +149,21 @@ func RunOrderService(c context.Context) {
 				err = fmt.Errorf("failed shutting down otel with error=%w", err)
 				commonErrors.HandleError(err, span)
 				logger.Error().Err(err).Msg(err.Error())
-				return
 			}
-
 			return
 		}
 		logger.Info().Msg("shutdown server")
 	}()
+
+	orderWorker := NewOrderWorker(orderService, queue)
+	logger = logger.With().Str(log.KeyProcess, "start-worker").Logger()
+	logger.Info().Msg("start order worker")
+	span.AddEvent("start order worker")
+	var wg sync.WaitGroup
+	wg.Add(1)
+	c = logger.WithContext(c)
+	go orderWorker.StartWorker(c, &wg)
+	wg.Wait()
 
 	<-c.Done()
 	logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()

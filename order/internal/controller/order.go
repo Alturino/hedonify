@@ -9,23 +9,30 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Alturino/ecommerce/internal/common"
 	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	commonHttp "github.com/Alturino/ecommerce/internal/common/http"
 	"github.com/Alturino/ecommerce/internal/log"
 	"github.com/Alturino/ecommerce/order/internal/common/otel"
-	"github.com/Alturino/ecommerce/order/internal/request"
+	"github.com/Alturino/ecommerce/order/internal/response"
 	"github.com/Alturino/ecommerce/order/internal/service"
-	commonRequest "github.com/Alturino/ecommerce/order/pkg/request"
+	"github.com/Alturino/ecommerce/order/pkg/request"
 )
 
 type OrderController struct {
 	service *service.OrderService
+	queue   chan<- request.CreateOrder
 }
 
-func AttachOrderController(mux *mux.Router, service *service.OrderService) {
-	controller := OrderController{service: service}
+func AttachOrderController(
+	mux *mux.Router,
+	service *service.OrderService,
+	queue chan<- request.CreateOrder,
+) {
+	controller := OrderController{service: service, queue: queue}
 
 	router := mux.PathPrefix("/orders").Subrouter()
 	router.HandleFunc("", controller.FindOrders).Methods(http.MethodGet)
@@ -33,7 +40,7 @@ func AttachOrderController(mux *mux.Router, service *service.OrderService) {
 	router.HandleFunc("/checkout", controller.CreateOrder).Methods(http.MethodPost)
 }
 
-func (s *OrderController) FindOrderById(w http.ResponseWriter, r *http.Request) {
+func (ctrl OrderController) FindOrderById(w http.ResponseWriter, r *http.Request) {
 	c, span := otel.Tracer.Start(r.Context(), "OrderController FindOrders")
 	defer span.End()
 
@@ -57,12 +64,10 @@ func (s *OrderController) FindOrderById(w http.ResponseWriter, r *http.Request) 
 	logger = logger.With().Str(log.KeyProcess, "finding orders").Logger()
 	logger.Info().Msg("finding orders")
 	c = logger.WithContext(c)
-	orders, err := s.service.FindOrderById(c, request.FindOrderById{OrderId: orderId})
+	orders, err := ctrl.service.FindOrderById(c, request.FindOrderById{OrderId: orderId})
 	if err != nil {
-
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -83,7 +88,7 @@ func (s *OrderController) FindOrderById(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-func (s *OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
+func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	c, span := otel.Tracer.Start(r.Context(), "OrderController FindOrders")
 	defer span.End()
 
@@ -131,7 +136,10 @@ func (s *OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	logger = logger.With().Str(log.KeyProcess, "finding orders").Logger()
 	logger.Info().Msg("finding orders")
 	c = logger.WithContext(c)
-	orders, err := s.service.FindOrders(c, request.FindOrders{OrderId: orderId, UserId: userId})
+	orders, err := ctrl.service.FindOrders(
+		c,
+		request.FindOrders{OrderId: orderId, UserId: userId},
+	)
 	if err != nil {
 		err = fmt.Errorf("failed finding orders with error=%w", err)
 		commonErrors.HandleError(err, span)
@@ -155,13 +163,13 @@ func (s *OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) {
+func (ctrl OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	c, span := otel.Tracer.Start(r.Context(), "OrderController CreateOrder")
 	defer span.End()
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "OrderController CreateOrder").
+		Str(log.KeyTag, "OrderController-CreateOrder").
 		Logger()
 
 	logger = logger.With().Str(log.KeyProcess, "getting userId from jwtToken").Logger()
@@ -183,7 +191,7 @@ func (s *OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) {
 
 	logger = logger.With().Str(log.KeyProcess, "decoding request body").Logger()
 	logger.Info().Msg("decoding request body")
-	param := commonRequest.CreateOrder{}
+	param := request.CreateOrder{}
 	err = json.NewDecoder(r.Body).Decode(&param)
 	if err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
@@ -196,6 +204,15 @@ func (s *OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	logger = logger.With().
+		Str(log.KeyOrderID, param.ID.String()).
+		Str(log.KeyUserID, param.UserId.String()).
+		Logger()
+	param.TraceLink = trace.LinkFromContext(c)
+	span.SetAttributes(
+		attribute.String(log.KeyOrderID, param.ID.String()),
+		attribute.String(log.KeyUserID, param.UserId.String()),
+	)
 	logger.Info().Msg("decoded request body")
 
 	logger = logger.With().Str(log.KeyProcess, "validating request body").Logger()
@@ -217,10 +234,11 @@ func (s *OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) {
 
 	logger = logger.With().Str(log.KeyProcess, "creating order").Logger()
 	logger.Info().Msg("creating order")
-	c = logger.WithContext(c)
-	order, err := s.service.CreateOrder(c, param)
-	if err != nil {
-		err = fmt.Errorf("failed creating order with error=%w", err)
+	param.ResultChannel = make(chan response.Result)
+	defer close(param.ResultChannel)
+	select {
+	case <-c.Done():
+		err = fmt.Errorf("failed creating order with error=%w", c.Err())
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
@@ -229,15 +247,41 @@ func (s *OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) {
 			"message":    err.Error(),
 		})
 		return
+	case ctrl.queue <- param:
+		logger.Info().Msg("inserted order to queue")
 	}
-	logger.Info().Msg("created order")
-
-	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
-		"status":     "success",
-		"statusCode": http.StatusOK,
-		"message":    "order created",
-		"data": map[string]interface{}{
-			"order": order,
-		},
-	})
+	select {
+	case <-c.Done():
+		err = fmt.Errorf("failed creating order with error=%w", c.Err())
+		commonErrors.HandleError(err, span)
+		logger.Error().Err(err).Msg(err.Error())
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			"status":     "failed",
+			"statusCode": http.StatusInternalServerError,
+			"message":    err.Error(),
+		})
+		return
+	case result := <-param.ResultChannel:
+		if result.Err != nil {
+			err = fmt.Errorf("failed creating order with error=%w", result.Err)
+			commonErrors.HandleError(err, span)
+			logger.Error().Err(err).Msg(err.Error())
+			commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+				"status":     "failed",
+				"statusCode": http.StatusBadRequest,
+				"message":    err.Error(),
+			})
+			return
+		}
+		logger.Info().Msg("order created")
+		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+			"status":     "success",
+			"statusCode": http.StatusOK,
+			"message":    "order created",
+			"data": map[string]interface{}{
+				"order": result.Order,
+			},
+		})
+		return
+	}
 }

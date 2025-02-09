@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Alturino/ecommerce/cart/internal/common/otel"
 	"github.com/Alturino/ecommerce/cart/internal/service"
@@ -30,7 +32,8 @@ func AttachCartController(mux *mux.Router, service *service.CartService) {
 	router.HandleFunc("", controller.InsertCart).Methods(http.MethodPost)
 	router.HandleFunc("/{cartId}/checkout", controller.CheckoutCart).Methods(http.MethodPost)
 	router.HandleFunc("/{cartId}", controller.FindCartById).Methods(http.MethodGet)
-	router.HandleFunc("/{cartId}/{cartItemId}", controller.RemoveCartItem).Methods(http.MethodDelete)
+	router.HandleFunc("/{cartId}/{cartItemId}", controller.RemoveCartItem).
+		Methods(http.MethodDelete)
 }
 
 func (t CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +59,6 @@ func (t CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	logger.Info().Msg("decoded request body")
 
 	logger = logger.With().Str(log.KeyProcess, "validating requestbody").Logger()
@@ -265,7 +267,13 @@ func (t CartController) RemoveCartItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t CartController) CheckoutCart(w http.ResponseWriter, r *http.Request) {
-	c, span := otel.Tracer.Start(r.Context(), "CartController CheckoutCart")
+	requestId := log.RequestIDFromContext(r.Context())
+	requestIdAttr := attribute.String(log.KeyRequestID, requestId)
+	c, span := otel.Tracer.Start(
+		r.Context(),
+		"CartController CheckoutCart",
+		trace.WithAttributes(requestIdAttr),
+	)
 	defer span.End()
 
 	logger := zerolog.Ctx(c).

@@ -36,7 +36,20 @@ where
 delete from order_items
 where id = $1 returning *;
 
+-- name: InsertOrders :copyfrom
+insert into orders (id, user_id, created_at, updated_at) values (
+    $1, $2, $3, $4
+);
+
 -- name: InsertOrderItem :copyfrom
 insert into order_items (order_id, product_id, quantity, price) values (
     $1, $2, $3, $4
 );
+
+-- name: GetOrders :many
+select
+    o.*,
+    json_agg(to_json(oi.*)) as order_items
+from orders as o
+inner join order_items as oi on o.id = oi.order_id
+group by o.id, o.user_id, o.created_at, o.updated_at;

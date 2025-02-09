@@ -2,27 +2,29 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
+	"strings"
+	"sync"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Alturino/ecommerce/internal/common/constants"
 	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	"github.com/Alturino/ecommerce/internal/log"
-	"github.com/Alturino/ecommerce/order/internal/common/cache"
 	"github.com/Alturino/ecommerce/internal/repository"
 	"github.com/Alturino/ecommerce/order/internal/common/otel"
-	internalRequest "github.com/Alturino/ecommerce/order/internal/request"
-	"github.com/Alturino/ecommerce/order/internal/response"
+	inResponse "github.com/Alturino/ecommerce/order/internal/response"
 	"github.com/Alturino/ecommerce/order/pkg/request"
+	"github.com/Alturino/ecommerce/order/pkg/response"
 )
 
 type OrderService struct {
@@ -41,7 +43,7 @@ func NewOrderService(
 
 func (s OrderService) FindOrderById(
 	c context.Context,
-	param internalRequest.FindOrderById,
+	param request.FindOrderById,
 ) (response.Order, error) {
 	c, span := otel.Tracer.Start(c, "OrderService FindOrderById")
 	defer span.End()
@@ -115,7 +117,7 @@ func (s OrderService) FindOrderById(
 
 func (s OrderService) FindOrders(
 	c context.Context,
-	param internalRequest.FindOrders,
+	param request.FindOrders,
 ) ([]repository.Order, error) {
 	c, span := otel.Tracer.Start(c, "OrderService FindOrders")
 	defer span.End()
@@ -146,260 +148,324 @@ func (s OrderService) FindOrders(
 	return orders, nil
 }
 
-func (s OrderService) CreateOrder(
-	c context.Context,
-	param request.CreateOrder,
-) (response.Order, error) {
-	c, span := otel.Tracer.Start(c, "OrderService CreateOrder")
+func (s OrderService) BatchCreateOrder(c context.Context, params []request.CreateOrder) error {
+	traceLinks := make([]trace.Link, 0, len(params))
+	for _, param := range params {
+		traceLinks = append(traceLinks, param.TraceLink)
+	}
+	c, span := otel.Tracer.Start(c, "OrderService BatchCreateOrder", trace.WithLinks(traceLinks...))
 	defer span.End()
 
-	cacheKey := fmt.Sprintf(cache.KEY_ORDER, param.ID)
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "OrderService CreateOrder").
-		Str(log.KeyCacheKey, cacheKey).
+		Str(log.KeyTag, "OrderService BatchCreateOrder").
+		Any(log.KeyOrders, params).
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "initializing transaction").Logger()
-	logger.Info().Msg("initializing transaction")
+	logger = logger.With().Str(log.KeyProcess, "merge-order-item").Logger()
+	span.AddEvent("merging order items quantity")
+	type mergedOrderItem struct {
+		Items               []request.OrderItem `json:"items"`
+		OrderedItemQuantity int32               `json:"ordered_item_quantity"`
+	}
+	mapMergedOrderItem := map[string]mergedOrderItem{}
+	mapOrder := map[string]request.CreateOrder{}
+	productIds := []uuid.UUID{}
+	for _, order := range params {
+		orderId := order.ID.String()
+		_, ok := mapOrder[orderId]
+		if !ok {
+			mapOrder[orderId] = order
+		}
+		for _, orderItem := range order.OrderItems {
+			productId := orderItem.ProductID.String()
+			existing, ok := mapMergedOrderItem[productId]
+			if !ok {
+				mapMergedOrderItem[productId] = mergedOrderItem{
+					Items:               []request.OrderItem{orderItem},
+					OrderedItemQuantity: orderItem.Quantity,
+				}
+				productIds = append(productIds, orderItem.ProductID)
+				continue
+			}
+			existing.OrderedItemQuantity += orderItem.Quantity
+			existing.Items = append(existing.Items, orderItem)
+			mapMergedOrderItem[productId] = existing
+		}
+	}
+	logger = logger.With().
+		Any(log.KeyOrderItemsMerged, mapMergedOrderItem).
+		Any(log.KeyOrderAndItems, mapOrder).
+		Any(log.KeyProductIDs, productIds).
+		Logger()
+	logger.Info().Msg("merged order items quantity")
+	span.AddEvent("merged order items quantity")
+
+	logger = logger.With().Str(log.KeyProcess, "initializing-transaction").Logger()
 	tx, err := s.pool.BeginTx(c, pgx.TxOptions{})
 	if err != nil {
 		err = fmt.Errorf("failed initializing transaction with error=%w", err)
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		return response.Order{}, err
+		returnOrderError(c, params, err)
+		return err
 	}
-	logger.Info().Msg("initialized transaction")
 	defer func() {
-		logger := logger.With().Str(log.KeyProcess, "rolling back transaction").Logger()
 		logger.Info().Msg("rolling back transaction")
 		span.AddEvent("rolling back transaction")
-
-		logger.Info().Msg("rolling back database transaction")
-		span.AddEvent("rolling back database transaction")
 		err := tx.Rollback(c)
 		if err != nil {
 			err = fmt.Errorf("failed rolling back transaction with error=%w", err)
 			if errors.Is(err, pgx.ErrTxClosed) {
 				logger.Info().Err(err).Msg(err.Error())
+				span.AddEvent(err.Error())
 				return
 			}
 			logger.Error().Err(err).Msg(err.Error())
 			commonErrors.HandleError(err, span)
-			return
 		}
-		logger.Info().Msg("rolled back database transaction")
-		span.AddEvent("rolled back database transaction")
-
-		logger.Info().Msg("rolling back order cache")
-		span.AddEvent("rolling back order cache")
-		err = s.cache.JSONDel(c, cacheKey, "$").Err()
-		if err != nil {
-			err = fmt.Errorf("failed deleting cache with error=%w", err)
-			commonErrors.HandleError(err, span)
-			logger.Error().Err(err).Msg(err.Error())
-			return
-		}
-		span.AddEvent("rolled back order cache")
-		logger.Info().Msg("rolled back order cache")
-
-		logger.Info().Msg("rolling back decrement product quantity")
-		span.AddEvent("rolling back decrement product quantity")
-		for _, item := range param.OrderItems {
-			cacheKey := cache.KEY_PRODUCTS + item.ProductID.String()
-			err := s.cache.JSONNumIncrBy(c, cacheKey, ".quantity", -float64(item.Quantity)).Err()
-			if err != nil {
-				err = fmt.Errorf(
-					"failed rolling back decrement product quantity with error=%w",
-					err,
-				)
-				commonErrors.HandleError(err, span)
-				logger.Error().Err(err).Msg(err.Error())
-				return
-			}
-		}
-		logger.Info().Msg("rolled back decrement product quantity")
-		span.AddEvent("rolled back decrement product quantity")
-
 		logger.Info().Msg("rolled back transaction")
 		span.AddEvent("rolled back transaction")
 	}()
+	logger.Info().Msg("initialized transaction")
+	span.AddEvent("initialized transaction")
 
-	logger = logger.With().Str(log.KeyProcess, "checking and decreasing product quantity").Logger()
-	logger.Info().Msg("checking and decreasing product quantity")
-	canceledItems := []request.OrderItem{}
-	for i, item := range param.OrderItems {
-		productKey := cache.KEY_PRODUCTS + item.ProductID.String()
-
-		lg := logger.With().
-			Str(log.KeyProductID, item.ProductID.String()).
-			Str(log.KeyCacheKey, productKey).
-			Int("itemCount", i).
-			Logger()
-
-		lg.Info().Msg("decreasing product quantity")
-		str, err := s.cache.JSONNumIncrBy(c, productKey, ".quantity", -float64(item.Quantity)).
-			Result()
-		if err != nil {
-			err = fmt.Errorf("failed decreasing product quantity with error=%w", err)
-			lg.Error().Err(err).Msg(err.Error())
-			commonErrors.HandleError(err, span)
-			continue
-		}
-		lg = logger.With().Str(log.KeyProductQuantity, str).Logger()
-		lg.Info().Msg("decreased product quantity")
-
-		lg.Info().Msg("converting product quantity")
-		quantity, err := strconv.Atoi(str)
-		if err != nil {
-			canceledItems = append(canceledItems, item)
-			err = fmt.Errorf("failed converting quantity to int with error=%w", err)
-			lg.Error().Err(err).Msg(err.Error())
-			commonErrors.HandleError(err, span)
-			continue
-		}
-		lg = logger.With().Int(log.KeyProductQuantity, quantity).Logger()
-		lg.Info().Msg("converted product quantity")
-
-		lg.Info().Msg("checking product quantity still available")
-		if quantity < 0 {
-			canceledItems = append(canceledItems, item)
-			err = commonErrors.ErrOutOfStock
-			lg.Error().Err(err).Msg(err.Error())
-			commonErrors.HandleError(err, span)
-			continue
-		}
+	logger = logger.With().Str(log.KeyProcess, "check-quantity").Logger()
+	span.AddEvent("get products")
+	products, err := s.queries.WithTx(tx).FindProductsByIds(c, productIds)
+	if err != nil {
+		err = fmt.Errorf("failed get products with error=%w", err)
+		commonErrors.HandleError(err, span)
+		logger.Error().Err(err).Msg(err.Error())
+		returnOrderError(c, params, err)
+		return err
 	}
-	if len(canceledItems) > 0 {
-		logger = logger.With().
-			Str(log.KeyProcess, "rolling back decrement product quantity").
-			Logger()
-		logger.Info().Msg("rolling back decrement product quantity")
-		for _, item := range canceledItems {
-			productKey := cache.KEY_PRODUCTS + item.ProductID.String()
-			err = s.cache.JSONNumIncrBy(c, productKey, ".quantity", float64(item.Quantity)).Err()
-			if err != nil {
-				err = fmt.Errorf(
-					"failed rolling back decrement product quantity with error=%w",
-					errors.Join(err, commonErrors.ErrOutOfStock),
-				)
-				logger.Error().Err(err).Msg(err.Error())
-				commonErrors.HandleError(err, span)
-				return response.Order{}, nil
+	logger = logger.With().Any(log.KeyProducts, products).Logger()
+	logger.Info().Msg("got products")
+	span.AddEvent("got products")
+
+	span.AddEvent("check and decrease product quantity")
+	for _, product := range products {
+		productId := product.ID.String()
+		merged := mapMergedOrderItem[productId]
+		logger.Info().Msg("checking quantity")
+		for product.Quantity-merged.OrderedItemQuantity < 0 {
+			if len(merged.Items) == 0 {
+				logger.Info().Msg("no order items")
+				break
 			}
-		}
-		logger.Info().Msg("rolling back decrement product quantity")
-		return response.Order{}, err
-	}
+			lastOrderItem := merged.Items[len(merged.Items)-1]
+			merged.OrderedItemQuantity -= lastOrderItem.Quantity
+			merged.Items = merged.Items[:len(merged.Items)-1]
 
-	logger = logger.With().Str(log.KeyProcess, "inserting order").Logger()
-	logger.Info().Msg("inserting order")
-	insertedOrder, err := s.queries.WithTx(tx).
-		InsertOrder(c, repository.InsertOrderParams{ID: param.ID, UserID: param.UserId})
+			orderId := lastOrderItem.OrderID.String()
+			span.AddEvent(
+				"poping back order item from order",
+				trace.WithAttributes(
+					attribute.String(log.KeyOrderID, orderId),
+					attribute.String(log.KeyOrderItemID, lastOrderItem.ID.String()),
+					attribute.String(log.KeyProductID, lastOrderItem.ProductID.String()),
+				),
+			)
+			existing := mapOrder[orderId]
+			existing.OrderItems = existing.OrderItems[:len(existing.OrderItems)-1]
+			mapOrder[orderId] = existing
+			span.AddEvent(
+				"poped back order item from order",
+				trace.WithAttributes(
+					attribute.String(log.KeyOrderID, orderId),
+					attribute.String(log.KeyOrderItemID, lastOrderItem.ID.String()),
+					attribute.String(log.KeyProductID, lastOrderItem.ProductID.String()),
+				),
+			)
+		}
+		mapMergedOrderItem[productId] = merged
+	}
+	logger = logger.With().
+		Any(log.KeyOrderItemsMerged, mapMergedOrderItem).
+		Any(log.KeyOrderAndItems, mapOrder).
+		Logger()
+	logger.Info().Msg("checked and decreased product quantity")
+	span.AddEvent("checked and decreased product quantity")
+
+	logger = logger.With().Str(log.KeyProcess, "update-product-quantity").Logger()
+	span.AddEvent("update product quantity")
+	var sb strings.Builder
+	for productId, item := range mapMergedOrderItem {
+		sb.WriteString(fmt.Sprintf(`when id = '%s' then %d `, productId, item.OrderedItemQuantity))
+	}
+	query := fmt.Sprintf(
+		`update products set updated_at = now(), quantity = quantity - case %s end where id = any($1::uuid[]) returning *;`,
+		sb.String(),
+	)
+	logger = logger.With().Str("query", query).Logger()
+	span.AddEvent("updating product quantity")
+	rows, err := tx.Query(c, query, productIds)
+	if err != nil {
+		err = fmt.Errorf("failed updating product quantity with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
+		commonErrors.HandleError(err, span)
+		returnOrderError(c, params, err)
+		return err
+	}
+	_, err = pgx.CollectRows(rows, pgx.RowToStructByName[repository.Product])
+	if err != nil {
+		err = fmt.Errorf("failed updating product quantity with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
+		commonErrors.HandleError(err, span)
+		returnOrderError(c, params, err)
+		return err
+	}
+	logger.Info().Msg("updated product quantity")
+	span.AddEvent("updated product quantity")
+
+	logger = logger.With().Str(log.KeyProcess, "create-order").Logger()
+	span.AddEvent("inserting orders")
+	insertOrderArgs := []repository.InsertOrdersParams{}
+	for _, item := range mapOrder {
+		if len(item.OrderItems) == 0 {
+			continue
+		}
+		insertOrderArgs = append(insertOrderArgs, repository.InsertOrdersParams{
+			ID:     item.ID,
+			UserID: item.UserId,
+			CreatedAt: pgtype.Timestamptz{
+				Time:             time.Now(),
+				InfinityModifier: pgtype.Finite,
+				Valid:            true,
+			},
+			UpdatedAt: pgtype.Timestamptz{
+				Time:             time.Now(),
+				InfinityModifier: pgtype.Finite,
+				Valid:            true,
+			},
+		})
+	}
+	logger = logger.With().Any("insert_order_args", insertOrderArgs).Logger()
+	_, err = s.queries.WithTx(tx).InsertOrders(c, insertOrderArgs)
 	if err != nil {
 		err = fmt.Errorf("failed inserting order with error=%w", err)
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		return response.Order{}, err
+		returnOrderError(c, params, err)
+		return err
 	}
-	logger.Info().Msg("inserted order")
-
-	logger = logger.With().Str(log.KeyProcess, "inserting orderItem").Logger()
-	logger.Info().Msg("preparing orderItem")
-	args := make([]repository.InsertOrderItemParams, len(param.OrderItems))
-	for i, item := range param.OrderItems {
-		args[i] = repository.InsertOrderItemParams{
-			OrderID:   insertedOrder.ID,
-			ProductID: item.ProductID,
-			Price: pgtype.Numeric{
-				Exp:              item.Price.Exponent(),
-				InfinityModifier: pgtype.Finite,
-				Int:              item.Price.Coefficient(),
-				NaN:              false,
-				Valid:            true,
-			},
-			Quantity: item.Quantity,
+	logger.Info().Msg("inserted orders")
+	span.AddEvent("inserted orders")
+	logger.Info().Msg("inserting order items")
+	span.AddEvent("inserting order items")
+	insertOrderItemArgs := []repository.InsertOrderItemParams{}
+	for _, item := range mapMergedOrderItem {
+		for _, orderItem := range item.Items {
+			insertOrderItemArgs = append(insertOrderItemArgs, repository.InsertOrderItemParams{
+				OrderID:   orderItem.OrderID,
+				ProductID: orderItem.ProductID,
+				Quantity:  orderItem.Quantity,
+				Price: pgtype.Numeric{
+					Exp:              orderItem.Price.Exponent(),
+					InfinityModifier: pgtype.Finite,
+					Int:              orderItem.Price.Coefficient(),
+					NaN:              false,
+					Valid:            true,
+				},
+			})
 		}
 	}
-	logger = logger.With().Any(log.KeyOrderItems, args).Logger()
-	logger.Info().Msg("prepared orderItem")
-
-	logger = logger.With().Str(log.KeyProcess, "inserting orderItem").Logger()
-	logger.Info().Msg("inserting orderItem")
-	insertedOrderItem, err := s.queries.WithTx(tx).InsertOrderItem(c, args)
+	_, err = s.queries.WithTx(tx).InsertOrderItem(c, insertOrderItemArgs)
 	if err != nil {
-		err = fmt.Errorf("failed inserting orderItem with error=%w", err)
+		err = fmt.Errorf("failed inserting order items with error=%w", err)
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		return response.Order{}, err
+		returnOrderError(c, params, err)
+		return err
 	}
-	logger.Info().Msgf("inserted orderItem count=%d", insertedOrderItem)
+	logger.Info().Msg("inserted order items")
+	span.AddEvent("inserted order items")
 
-	logger = logger.With().Str(log.KeyProcess, "get inserted order").Logger()
-	logger.Info().Msg("getting inserted order")
-	order, err := s.queries.WithTx(tx).
-		FindOrderById(c, repository.FindOrderByIdParams{ID: param.UserId, ID_2: param.ID})
+	orders, err := s.queries.WithTx(tx).GetOrders(c)
 	if err != nil {
-		err = fmt.Errorf("failed getting inserted order with error=%w", err)
+		err = fmt.Errorf("failed getting orders with error=%w", err)
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		return response.Order{}, err
+		returnOrderError(c, params, err)
+		return err
 	}
-	logger = logger.With().Any(log.KeyOrder, order).Logger()
-	logger.Info().Msg("got inserted orderItems")
+	mapResponseOrder := map[string]response.Order{}
+	for _, order := range orders {
+		orderId := order.ID.String()
+		_, ok := mapOrder[orderId]
+		if !ok {
+			continue
+		}
+		orderResponse, err := order.Response()
+		if err != nil {
+			err = fmt.Errorf("failed getting orders with error=%w", err)
+			commonErrors.HandleError(err, span)
+			logger.Error().Err(err).Msg(err.Error())
+			returnOrderError(c, params, err)
+			return err
+		}
+		mapResponseOrder[orderId] = orderResponse
+	}
 
-	logger = logger.With().Str(log.KeyProcess, "inserting order to cache").Logger()
-	logger.Info().Msg("inserting order to cache")
-	err = s.cache.JSONSet(c, cacheKey, "$", order).Err()
-	if err != nil {
-		err = fmt.Errorf("failed inserting order to cache with error=%w", err)
-		commonErrors.HandleError(err, span)
-		logger.Error().Err(err).Msg(err.Error())
-		return response.Order{}, err
-	}
-	logger.Info().Msg("inserted order to cache")
-
-	logger = logger.With().Str(log.KeyProcess, "publishing update product quantity").Logger()
-	logger.Info().Msg("publishing update product quantity")
-	span.AddEvent("publishing update product quantity")
-	paramJson, err := json.Marshal(param)
-	if err != nil {
-		err = fmt.Errorf("failed marshalling update product quantity with error=%w", err)
-		logger.Error().Err(err).Msg(err.Error())
-		commonErrors.HandleError(err, span)
-		return response.Order{}, err
-	}
-	err = s.cache.Publish(c, constants.UPDATE_PRODUCT_QUANTITY, paramJson).Err()
-	if err != nil {
-		err = fmt.Errorf("failed publishing update product quantity with error=%w", err)
-		logger.Error().Err(err).Msg(err.Error())
-		commonErrors.HandleError(err, span)
-		return response.Order{}, err
-	}
-	logger.Info().Msg("published update product quantity")
-	span.AddEvent("published update product quantity")
-
-	logger = logger.With().Str(log.KeyProcess, "committing transaction").Logger()
-	logger.Info().Msg("committing transaction")
+	logger = logger.With().Str(log.KeyProcess, "commit-transaction").Logger()
+	span.AddEvent("committing transaction")
 	err = tx.Commit(c)
 	if err != nil {
 		err = fmt.Errorf("failed committing transaction with error=%w", err)
-		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		return response.Order{}, err
-	}
-	logger.Info().Msg("commited transaction")
-
-	logger = logger.With().Str(log.KeyProcess, "mapping order").Logger()
-	logger.Info().Msg("mapping order")
-	resp, err := order.ResponseOrder()
-	if err != nil {
-		err = fmt.Errorf("failed mapping order with error=%w", err)
 		commonErrors.HandleError(err, span)
-		logger.Error().Err(err).Msg(err.Error())
-		return response.Order{}, err
+		var wg sync.WaitGroup
+		for _, param := range params {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				param.ResultChannel <- inResponse.Result{Order: response.Order{}, Err: err}
+			}()
+		}
+		wg.Wait()
+		return err
 	}
-	logger.Info().Msg("mapped order")
+	logger.Info().Msg("committed transaction")
+	span.AddEvent("committed transaction")
 
-	return resp, nil
+	var wg sync.WaitGroup
+	for _, param := range params {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			orderId := param.ID.String()
+			order, ok := mapResponseOrder[orderId]
+			if !ok {
+				param.ResultChannel <- inResponse.Result{Order: response.Order{}, Err: commonErrors.ErrOutOfStock}
+				return
+			}
+			param.ResultChannel <- inResponse.Result{Order: order, Err: nil}
+		}()
+	}
+	wg.Wait()
+	return nil
+}
+
+func returnOrderError(c context.Context, params []request.CreateOrder, err error) {
+	c, span := otel.Tracer.Start(c, "OrderService-returnOrderResult")
+	defer span.End()
+
+	logger := zerolog.Ctx(c).
+		With().
+		Str(log.KeyTag, "OrderService-returnOrderResult").
+		Str(log.KeyProcess, "returning order error").
+		Logger()
+
+	var wg sync.WaitGroup
+	for _, param := range params {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			logger.Info().Msg("returning order error")
+			param.ResultChannel <- inResponse.Result{Order: response.Order{}, Err: err}
+			logger.Info().Msg("return order error")
+		}()
+	}
+	wg.Wait()
 }
