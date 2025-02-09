@@ -9,9 +9,11 @@ select * from products
 where id = $1;
 
 -- name: FindProducts :many
-select *
-from products
-where name like '%' | $1::text | '%' and price >= $2 and price <= $3;
+select * from products;
+
+-- name: FindProductByName :one
+select * from products
+where name = $1;
 
 -- name: UpdateProduct :one
 update products set name = $1, price = $2, quantity = $3, updated_at = now()
@@ -24,3 +26,7 @@ where id = $1 returning *;
 -- name: DeleteProduct :one
 delete from products
 where id = $1 returning *;
+
+-- name: FindProductsByIds :many
+select * from products
+where id = any($1::uuid []);

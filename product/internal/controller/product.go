@@ -9,16 +9,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 
 	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
 	commonHttp "github.com/Alturino/ecommerce/internal/common/http"
-	commonValidate "github.com/Alturino/ecommerce/internal/common/validate"
 	"github.com/Alturino/ecommerce/internal/log"
+	"github.com/Alturino/ecommerce/internal/middleware"
 	"github.com/Alturino/ecommerce/product/internal/common/otel"
 	"github.com/Alturino/ecommerce/product/internal/service"
-	"github.com/Alturino/ecommerce/product/request"
+	"github.com/Alturino/ecommerce/product/pkg/request"
 )
 
 type ProductController struct {
@@ -29,8 +28,12 @@ func AttachProductController(mux *mux.Router, service *service.ProductService) {
 	controller := ProductController{service}
 
 	router := mux.PathPrefix("/products").Subrouter()
-	router.HandleFunc("", controller.FindProducts).Methods(http.MethodGet)
-	router.HandleFunc("", controller.InsertProduct).Methods(http.MethodPost)
+	router.HandleFunc("", controller.GetProducts).Methods(http.MethodGet)
+
+	postRouter := mux.PathPrefix("/products").Methods(http.MethodPost).Subrouter()
+	postRouter.HandleFunc("", controller.InsertProduct).Methods(http.MethodPost)
+	postRouter.Use(middleware.Auth)
+
 	router.HandleFunc("/{productId}", controller.FindProductById).Methods(http.MethodGet)
 	router.HandleFunc("/{productId}", controller.RemoveProduct).Methods(http.MethodDelete)
 	router.HandleFunc("/{productId}", controller.UpdateProduct).Methods(http.MethodPut)
@@ -59,10 +62,10 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KeyProcess, "validating requestbody").Logger()
+	logger = logger.With().Str(log.KeyProcess, "validating.request_body").Logger()
+
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
 	logger.Info().Msg("initialized validator")
@@ -109,7 +112,7 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-func (p ProductController) FindProducts(w http.ResponseWriter, r *http.Request) {
+func (ctrl ProductController) GetProducts(w http.ResponseWriter, r *http.Request) {
 	c, span := otel.Tracer.Start(r.Context(), "ProductController FindProducts")
 	defer span.End()
 
@@ -118,65 +121,13 @@ func (p ProductController) FindProducts(w http.ResponseWriter, r *http.Request) 
 		Str(log.KeyTag, "ProductController FindProducts").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "get query params").Logger()
-	logger.Info().Msg("get query params")
-	name := r.URL.Query().Get("name")
-	minPrice, err := decimal.NewFromString(r.URL.Query().Get("minPrice"))
-	if err != nil {
-		err = fmt.Errorf("failed to validate minPrice with error=%w", err)
-		logger.Error().Err(err).Msg(err.Error())
-		commonErrors.HandleError(err, span)
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
-			"status":     "failed",
-			"statusCode": http.StatusBadRequest,
-			"message":    err.Error(),
-		})
-		return
-	}
-	maxPrice, err := decimal.NewFromString(r.URL.Query().Get("maxPrice"))
-	if err != nil {
-		err = fmt.Errorf("failed validating maxPrice with error=%w", err)
-		commonErrors.HandleError(err, span)
-		logger.Error().Err(err).Msg(err.Error())
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
-			"status":     "failed",
-			"statusCode": http.StatusBadRequest,
-			"message":    err.Error(),
-		})
-		return
-	}
-	logger = logger.With().
-		Str(log.KeyProductName, name).
-		Str(log.KeyMinPrice, minPrice.String()).
-		Str(log.KeyMaxPrice, maxPrice.String()).
-		Logger()
-	logger.Info().Msg("get query params")
-
-	logger = logger.With().Str(log.KeyProcess, "validating query params").Logger()
-	logger.Info().Msg("validating query params")
-	req := request.FindProduct{Name: name, MinPrice: minPrice, MaxPrice: maxPrice}
-	validate := validator.New(validator.WithRequiredStructEnabled())
-	validate.RegisterCustomTypeFunc(commonValidate.PriceValue, decimal.Decimal{})
-	err = validate.StructCtx(c, req)
-	if err != nil {
-		err = fmt.Errorf("failed validating query params with error=%w", err)
-		commonErrors.HandleError(err, span)
-		logger.Error().Err(err).Msg(err.Error())
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
-			"status":     "failed",
-			"statusCode": http.StatusBadRequest,
-			"message":    err.Error(),
-		})
-		return
-	}
-	logger.Info().Msg("validated query params")
-
-	logger = logger.With().Str(log.KeyProcess, "finding products").Logger()
-	logger.Info().Msg("finding products")
+	logger = logger.With().Str(log.KeyProcess, "get products").Logger()
+	logger.Info().Msg("get products")
+	span.AddEvent("get products")
 	c = logger.WithContext(c)
-	products, err := p.service.FindProducts(c, req)
+	products, err := ctrl.service.GetProducts(c)
 	if err != nil {
-		err = fmt.Errorf("failed finding products with name=%s with error=%w", name, err)
+		err = fmt.Errorf("failed get products with error=%w", err)
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
@@ -187,12 +138,13 @@ func (p ProductController) FindProducts(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	logger = logger.With().Any(log.KeyProducts, products).Logger()
-	logger.Info().Msgf("found products name=%s", name)
+	span.AddEvent("got products")
+	logger.Info().Msg("got products")
 
 	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
-		"message":    fmt.Sprintf("products or name=%s found", name),
+		"message":    "products found",
 		"data": map[string]interface{}{
 			"products": products,
 		},
@@ -295,7 +247,7 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	
+
 	span.SetAttributes(
 		attribute.String(log.KeyProductName, reqBody.Name),
 		attribute.String(log.KeyProductPrice, reqBody.Price.String()),
@@ -303,7 +255,8 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 	)
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KeyProcess, "validating requestbody").Logger()
+	logger = logger.With().Str(log.KeyProcess, "validating.request_body").Logger()
+
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
 	logger.Info().Msg("initialized validator")
@@ -390,10 +343,11 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	
+
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KeyProcess, "validating requestbody").Logger()
+	logger = logger.With().Str(log.KeyProcess, "validating.request_body").Logger()
+
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
 	logger.Info().Msg("initialized validator")
