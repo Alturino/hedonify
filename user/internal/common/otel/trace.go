@@ -6,4 +6,4 @@ import (
 	"github.com/Alturino/ecommerce/internal/common/constants"
 )
 
-var Tracer = otel.Tracer(constants.AppUserService)
+var Tracer = otel.Tracer(constants.APP_USER_SERVICE)

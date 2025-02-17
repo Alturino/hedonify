@@ -1,13 +1,13 @@
 package constants
 
 const (
-	AppUserService           = "user-service"
-	AppNotificationService   = "notification-service"
-	AppProductService        = "product-service"
-	AppProductUpdateListener = "product-update-listener"
-	AppOrderService          = "order-service"
-	AppOrderWorker           = "order-worker"
-	AppCartService           = "cart-service"
-	MainEcommerce            = "main ecommerce"
-	AudienceUser             = "audience-user"
+	APP_USER_SERVICE            = "user-service"
+	APP_NOTIFICATION_SERVICE    = "notification-service"
+	APP_PRODUCT_SERVICE         = "product-service"
+	APP_PRODUCT_UPDATE_LISTENER = "product-update-listener"
+	APP_ORDER_SERVICE           = "order-service"
+	APP_ORDER_WORKER            = "order-worker"
+	APP_CART_SERVICE            = "cart-service"
+	APP_MAIN_ECOMMERCE          = "main ecommerce"
+	AUDIENCE_USER               = "audience-user"
 )

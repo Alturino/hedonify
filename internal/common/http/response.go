@@ -23,7 +23,7 @@ func WriteJsonResponse(
 
 	logger := zerolog.Ctx(c).With().Str("tag", "WriteJsonResponse").Logger()
 
-	w.Header().Add(HeaderContentType, HeaderValueJson)
+	w.Header().Add(KEY_HEADER_CONTENT_TYPE, HEADER_VALUE_APPLICATION_JSON)
 
 	var wg sync.WaitGroup
 	for k, v := range header {
@@ -41,9 +41,9 @@ func WriteJsonResponse(
 
 	err := json.NewEncoder(w).Encode(body)
 	if err != nil {
-		
-errors.HandleError(err, span)
-logger.Error().Err(err).Msg(err.Error())
+
+		errors.HandleError(err, span)
+		logger.Error().Err(err).Msg(err.Error())
 
 		return
 	}

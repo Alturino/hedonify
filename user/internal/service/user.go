@@ -49,12 +49,12 @@ func (u UserService) Login(
 	cacheKey := fmt.Sprintf(cache.LOGIN_USER, param.Email)
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "UserService Login").
-		Str(log.KeyEmail, param.Email).
-		Str(log.KeyCacheKey, cacheKey).
+		Str(log.KEY_TAG, "UserService Login").
+		Str(log.KEY_EMAIL, param.Email).
+		Str(log.KEY_CACHE_KEY, cacheKey).
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "getting token from cache").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "getting token from cache").Logger()
 	logger.Info().Msg("getting token from cache")
 	span.AddEvent("getting token from cache")
 	signedToken, err := u.cache.Get(c, cacheKey).Result()
@@ -63,7 +63,7 @@ func (u UserService) Login(
 		logger.Info().Err(err).Msg(err.Error())
 		span.AddEvent("failed getting token from cache")
 
-		logger = logger.With().Str(log.KeyProcess, "finding user by email").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "finding user by email").Logger()
 		logger.Info().Msg("finding user by email")
 		span.AddEvent("finding user by email")
 		user, err := u.queries.FindByEmail(c, param.Email)
@@ -78,7 +78,7 @@ func (u UserService) Login(
 		logger.Info().Msg("found user by email")
 
 		logger = logger.With().
-			Str(log.KeyProcess, "verifying hashed password with password").
+			Str(log.KEY_PROCESS, "verifying hashed password with password").
 			Logger()
 		logger.Info().Msg("verifying hashed password with password")
 		span.AddEvent("verifying hashed password with password")
@@ -93,15 +93,15 @@ func (u UserService) Login(
 		logger.Info().Msg("verified hashed password with password")
 		span.AddEvent("verified hashed password with password")
 
-		logger = logger.With().Str(log.KeyProcess, "creating login token").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "creating login token").Logger()
 		span.AddEvent("creating login token")
 		logger.Info().Msg("creating login token")
 		tokenCreationTime := time.Now()
 		token := jwt.NewWithClaims(
 			jwt.SigningMethodHS256,
 			jwt.RegisteredClaims{
-				Audience:  jwt.ClaimStrings{constants.AudienceUser},
-				Issuer:    constants.AppUserService,
+				Audience:  jwt.ClaimStrings{constants.AUDIENCE_USER},
+				Issuer:    constants.APP_USER_SERVICE,
 				Subject:   user.ID.String(),
 				ExpiresAt: jwt.NewNumericDate(tokenCreationTime.Add(30 * time.Minute)),
 				IssuedAt:  jwt.NewNumericDate(tokenCreationTime),
@@ -111,7 +111,7 @@ func (u UserService) Login(
 		logger.Info().Msg("created login token")
 		span.AddEvent("created login token")
 
-		logger = logger.With().Str(log.KeyProcess, "signing token").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "signing token").Logger()
 		logger.Info().Msg("signing token")
 		span.AddEvent("signing token")
 		signedToken, err = token.SignedString([]byte(u.config.SecretKey))
@@ -124,7 +124,7 @@ func (u UserService) Login(
 		span.AddEvent("signed token")
 		logger.Info().Msg("signed token")
 
-		logger = logger.With().Str(log.KeyProcess, "inserting token to cache").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "inserting token to cache").Logger()
 		logger.Info().Msg("inserting token to cache")
 		span.AddEvent("inserting token to cache")
 		err = u.cache.SetEx(c, cacheKey, signedToken, 25*time.Minute).Err()
@@ -150,11 +150,11 @@ func (svc UserService) Register(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "UserService Register").
-		Str(log.KeyEmail, param.Email).
+		Str(log.KEY_TAG, "UserService Register").
+		Str(log.KEY_EMAIL, param.Email).
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "checking if email exists").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "checking if email exists").Logger()
 	logger.Info().Msg("checking if email exists")
 	span.AddEvent("checking if email exists")
 	_, err := svc.queries.FindByEmail(c, param.Email)
@@ -167,7 +167,7 @@ func (svc UserService) Register(
 	span.AddEvent("checked email not exist")
 	logger.Info().Msg("checked email not exist")
 
-	logger = logger.With().Str(log.KeyProcess, "hashing password").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "hashing password").Logger()
 	span.AddEvent("hashing password")
 	logger.Info().Msg("hashing password")
 	hashed, err := bcrypt.GenerateFromPassword([]byte(param.Password), bcrypt.DefaultCost)
@@ -181,7 +181,7 @@ func (svc UserService) Register(
 	span.AddEvent("hashed password")
 	logger.Info().Msg("hashed password")
 
-	logger = logger.With().Str(log.KeyProcess, "inserting user to database").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "inserting user to database").Logger()
 	logger.Info().Msg("inserting user to database")
 	user, err := svc.queries.InsertUser(c, repository.InsertUserParams{
 		Username: param.Username,
@@ -206,7 +206,7 @@ func (svc UserService) Register(
 	}
 	logger.Info().Msg("inserted user to database")
 
-	logger = logger.With().Str(log.KeyProcess, "inserting user to cache").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "inserting user to cache").Logger()
 	logger.Info().Msg("inserting user to cache")
 	err = svc.cache.JSONSet(c, fmt.Sprintf(cache.KEY_USER, user.ID.String()), "$", user).Err()
 	if err != nil {
@@ -227,9 +227,9 @@ func (svc UserService) FindUserById(
 	c, span := userOtel.Tracer.Start(c, "UserService FindUserById")
 	defer span.End()
 
-	logger := zerolog.Ctx(c).With().Str(log.KeyTag, "UserService FindUserById").Logger()
+	logger := zerolog.Ctx(c).With().Str(log.KEY_TAG, "UserService FindUserById").Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "finding user by id in cache").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "finding user by id in cache").Logger()
 	logger.Info().Msg("finding user by id in cache")
 	jsonCache, err := svc.cache.JSONGet(c, fmt.Sprintf(cache.KEY_USER, param.ID.String())).Result()
 	if err != nil {
@@ -237,7 +237,7 @@ func (svc UserService) FindUserById(
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 
-		logger = logger.With().Str(log.KeyProcess, "finding user by id in database").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "finding user by id in database").Logger()
 		logger.Info().Msg("finding user by id in database")
 		user, err = svc.queries.FindById(c, param.ID)
 		if err != nil {
@@ -250,15 +250,15 @@ func (svc UserService) FindUserById(
 			logger.Error().Err(err).Msg(err.Error())
 			return repository.User{}, err
 		}
-		logger = logger.With().Any(log.KeyUser, user).Logger()
+		logger = logger.With().Any(log.KEY_USER, user).Logger()
 		logger.Info().Msg("found user by id in database")
 
 		return user, err
 	}
-	logger = logger.With().RawJSON(log.KeyJsonCache, []byte(jsonCache)).Logger()
+	logger = logger.With().RawJSON(log.KEY_JSON_CACHE, []byte(jsonCache)).Logger()
 	logger.Info().Msg("found user by id in cache")
 
-	logger = logger.With().Str(log.KeyProcess, "unmarshaling user from cache").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "unmarshaling user from cache").Logger()
 	logger.Info().Msg("unmarshaling user from cache")
 	err = json.Unmarshal([]byte(jsonCache), &user)
 	if err != nil {
@@ -267,7 +267,7 @@ func (svc UserService) FindUserById(
 		logger.Error().Err(err).Msg(err.Error())
 		return repository.User{}, err
 	}
-	logger = logger.With().Any(log.KeyUser, user).Logger()
+	logger = logger.With().Any(log.KEY_USER, user).Logger()
 	logger.Info().Msg("unmarshaled user from cache")
 
 	return user, nil

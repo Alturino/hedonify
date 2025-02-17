@@ -67,8 +67,8 @@ func InitLogger(filepath string) *zerolog.Logger {
 		logger = &log
 
 		logger.Info().
-			Str(KeyTag, "InitLogger").
-			Str(KeyProcess, "InitLogger").
+			Str(KEY_TAG, "InitLogger").
+			Str(KEY_PROCESS, "InitLogger").
 			Msg("finish initiating logging")
 	})
 	return logger

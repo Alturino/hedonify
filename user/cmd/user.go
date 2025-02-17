@@ -28,30 +28,30 @@ func RunUserService(c context.Context) {
 	c, span := commonOtel.Tracer.Start(c, "RunUserService")
 	defer span.End()
 
-	logger := log.InitLogger(fmt.Sprintf("/var/log/%s.log", constants.AppUserService)).
+	logger := log.InitLogger(fmt.Sprintf("/var/log/%s.log", constants.APP_USER_SERVICE)).
 		With().
-		Str(log.KeyAppName, constants.AppUserService).
-		Str(log.KeyTag, "main RunUserService").
+		Str(log.KEY_APP_NAME, constants.APP_USER_SERVICE).
+		Str(log.KEY_TAG, "main RunUserService").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "initializing config").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing config").Logger()
 	logger.Info().Msg("initializing config")
 	c = logger.WithContext(c)
-	cfg := config.InitConfig(c, constants.AppUserService)
-	logger = logger.With().Any(log.KeyConfig, cfg).Logger()
+	cfg := config.InitConfig(c, constants.APP_USER_SERVICE)
+	logger = logger.With().Any(log.KEY_CONFIG, cfg).Logger()
 	logger.Info().Msg("initialized config")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing router").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing router").Logger()
 	logger.Info().Msg("initializing router")
 	mux := mux.NewRouter()
 	mux.StrictSlash(true)
-	mux.Use(otelmux.Middleware(constants.AppUserService), middleware.Logging)
+	mux.Use(otelmux.Middleware(constants.APP_USER_SERVICE), middleware.Logging)
 	logger.Info().Msg("initialized router")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing otel sdk").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing otel sdk").Logger()
 	logger.Info().Msg("initializing otel sdk")
 	c = logger.WithContext(c)
-	otelShutdowns, err := otel.InitOtelSdk(c, constants.AppUserService, cfg.Otel)
+	otelShutdowns, err := otel.InitOtelSdk(c, constants.APP_USER_SERVICE, cfg.Otel)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel sdk with error=%w", err)
 		commonErrors.HandleError(err, span)
@@ -60,30 +60,30 @@ func RunUserService(c context.Context) {
 	}
 	logger.Info().Msg("initialized otel sdk")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing database").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing database").Logger()
 	logger.Info().Msg("initializing database")
 	c = logger.WithContext(c)
 	db := infra.NewDatabaseClient(c, cfg.Database)
 	logger.Info().Msg("initialized database")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing cache").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing cache").Logger()
 	logger.Info().Msg("initializing cache")
 	c = logger.WithContext(c)
 	cache := infra.NewCacheClient(c, cfg.Cache)
 	logger.Info().Msg("initialized cache")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing userService").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing userService").Logger()
 	logger.Info().Msg("initializing userService")
 	queries := repository.New(db)
 	userService := service.NewUserService(queries, cfg.Application, cache)
 	logger.Info().Msg("initialized userService")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing userController").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing userController").Logger()
 	logger.Info().Msg("initializing userController")
 	controller.AttachUserController(c, mux, userService)
 	logger.Info().Msg("initialized userController")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing server").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing server").Logger()
 	logger.Info().Msg("initializing server")
 	server := http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Application.Host, cfg.Application.Port),
@@ -95,10 +95,10 @@ func RunUserService(c context.Context) {
 	logger.Info().Msg("initialized server")
 
 	go func() {
-		logger = logger.With().Str(log.KeyProcess, "start server").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "start server").Logger()
 		logger.Info().Msgf("start listening request at %s", server.Addr)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
+			logger = logger.With().Str(log.KEY_PROCESS, "shutdown server").Logger()
 			err = fmt.Errorf("error=%w occured while server is running", err)
 
 			commonErrors.HandleError(err, span)
@@ -118,7 +118,7 @@ func RunUserService(c context.Context) {
 	}()
 
 	<-c.Done()
-	logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "shutdown server").Logger()
 	logger.Info().Msg("received interuption signal shutting down")
 
 	logger.Info().Msg("shutting down otel")

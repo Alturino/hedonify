@@ -11,13 +11,14 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	commonHttp "github.com/Alturino/ecommerce/internal/common/http"
 	"github.com/Alturino/ecommerce/internal/common/otel"
 	"github.com/Alturino/ecommerce/internal/log"
 )
 
 func Logging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestID := r.Header.Get(log.KeyRequestID)
+		requestID := r.Header.Get(commonHttp.KEY_HEADER_REQUEST_ID)
 		if requestID == "" {
 			requestID = uuid.NewString()
 		}
@@ -25,12 +26,12 @@ func Logging(next http.Handler) http.Handler {
 			r.Context(),
 			"main Logging",
 			trace.WithAttributes(
-				attribute.String(log.KeyRequestID, requestID),
-				attribute.String(log.KeyRequestHost, r.Host),
-				attribute.String(log.KeyRequestIp, r.RemoteAddr),
-				attribute.String(log.KeyRequestMethod, r.Method),
-				attribute.String(log.KeyRequestURI, r.RequestURI),
-				attribute.String(log.KeyRequestURL, r.URL.String()),
+				attribute.String(log.KEY_REQUEST_ID, requestID),
+				attribute.String(log.KEY_REQUEST_HOST, r.Host),
+				attribute.String(log.KEY_REQUEST_IP, r.RemoteAddr),
+				attribute.String(log.KEY_REQUEST_METHOD, r.Method),
+				attribute.String(log.KEY_REQUEST_URI, r.RequestURI),
+				attribute.String(log.KEY_REQUEST_URL, r.URL.String()),
 			),
 		)
 		defer span.End()
@@ -43,16 +44,16 @@ func Logging(next http.Handler) http.Handler {
 
 		logger := zerolog.Ctx(c).
 			With().
-			Str(log.KeyRequestID, requestID).
-			Dict(log.KeyRequest, zerolog.Dict().
-				Any(log.KeyRequestHeader, r.Header).
-				Str(log.KeyRequestHost, r.Host).
-				Str(log.KeyRequestIp, r.RemoteAddr).
-				Str(log.KeyRequestMethod, r.Method).
-				Str(log.KeyRequestURI, r.RequestURI).
-				Str(log.KeyRequestURL, r.URL.String()).
-				Any(log.KeyRequestBody, requestBody)).
-			Str(log.KeyTag, "Logging").
+			Str(log.KEY_REQUEST_ID, requestID).
+			Dict(log.KEY_REQUEST, zerolog.Dict().
+				Any(log.KEY_REQUEST_HEADER, r.Header).
+				Str(log.KEY_REQUEST_HOST, r.Host).
+				Str(log.KEY_REQUEST_IP, r.RemoteAddr).
+				Str(log.KEY_REQUEST_METHOD, r.Method).
+				Str(log.KEY_REQUEST_URI, r.RequestURI).
+				Str(log.KEY_REQUEST_URL, r.URL.String()).
+				Any(log.KEY_REQUEST_BODY, requestBody)).
+			Str(log.KEY_TAG, "Logging").
 			Logger()
 		logger.Info().Msg("attached request value to logger")
 

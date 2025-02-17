@@ -40,15 +40,15 @@ func InitOtelSdk(
 	c, span := inOtel.Tracer.Start(c, "InitOtelSdk")
 	defer span.End()
 
-	logger := zerolog.Ctx(c).With().Str(log.KeyTag, "main InitOtelSdk").Logger()
+	logger := zerolog.Ctx(c).With().Str(log.KEY_TAG, "main InitOtelSdk").Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "initializing otel propagator").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing otel propagator").Logger()
 	logger.Info().Msg("initializing otel propagator")
 	propagator := newPropagator()
 	otel.SetTextMapPropagator(propagator)
 	logger.Info().Msg("initialized otel propagator")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing otel tracerProvider").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing otel tracerProvider").Logger()
 	logger.Info().Msg("initializing otel tracerProvider")
 	c = logger.WithContext(c)
 	tracerProvider, err := inTrace.InitTracerProvider(
@@ -68,7 +68,7 @@ func InitOtelSdk(
 	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
 	logger.Info().Msg("initialized otel tracerProvider")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing meterProvider").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing meterProvider").Logger()
 	logger.Info().Msg("initializing meterProvider")
 	c = logger.WithContext(c)
 	meterProvider, err := metric.InitMetricProvider(

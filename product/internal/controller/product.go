@@ -45,10 +45,10 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "ProductController InsertProduct").
+		Str(log.KEY_TAG, "ProductController InsertProduct").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "decoding request body").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "decoding request body").Logger()
 	logger.Info().Msg("decoding request body")
 	reqBody := request.Product{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
@@ -64,7 +64,7 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 	}
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KeyProcess, "validating.request_body").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "validating.request_body").Logger()
 
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
@@ -84,7 +84,7 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 	}
 	logger.Info().Msg("validated request body")
 
-	logger = logger.With().Str(log.KeyProcess, "inserting product").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "inserting product").Logger()
 	logger.Info().Msg("inserting product")
 	c = logger.WithContext(c)
 	product, err := p.service.InsertProduct(c, reqBody)
@@ -118,10 +118,10 @@ func (ctrl ProductController) GetProducts(w http.ResponseWriter, r *http.Request
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "ProductController FindProducts").
+		Str(log.KEY_TAG, "ProductController FindProducts").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "get products").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "get products").Logger()
 	logger.Info().Msg("get products")
 	span.AddEvent("get products")
 	c = logger.WithContext(c)
@@ -137,7 +137,7 @@ func (ctrl ProductController) GetProducts(w http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	logger = logger.With().Any(log.KeyProducts, products).Logger()
+	logger = logger.With().Any(log.KEY_PRODUCTS, products).Logger()
 	span.AddEvent("got products")
 	logger.Info().Msg("got products")
 
@@ -157,10 +157,10 @@ func (p ProductController) FindProductById(w http.ResponseWriter, r *http.Reques
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "ProductController FindProductById").
+		Str(log.KEY_TAG, "ProductController FindProductById").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "get product id").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "get product id").Logger()
 	logger.Info().Msg("get product id")
 	id, err := uuid.Parse(r.PathValue("productId"))
 	if err != nil {
@@ -171,11 +171,11 @@ func (p ProductController) FindProductById(w http.ResponseWriter, r *http.Reques
 
 		return
 	}
-	logger = logger.With().Str(log.KeyProductID, id.String()).Logger()
-	span.SetAttributes(attribute.String(log.KeyProductID, id.String()))
+	logger = logger.With().Str(log.KEY_PRODUCT_ID, id.String()).Logger()
+	span.SetAttributes(attribute.String(log.KEY_PRODUCT_ID, id.String()))
 	logger.Info().Msgf("got product id=%s", id.String())
 
-	logger = logger.With().Str(log.KeyProcess, "finding product").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "finding product").Logger()
 	logger.Info().Msg("finding product")
 	c = logger.WithContext(c)
 	product, err := p.service.FindProductById(c, id)
@@ -192,7 +192,7 @@ func (p ProductController) FindProductById(w http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-	logger = logger.With().Any(log.KeyProduct, product).Logger()
+	logger = logger.With().Any(log.KEY_PRODUCT, product).Logger()
 	logger.Info().Msgf("found product id=%s", id.String())
 
 	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
@@ -211,10 +211,10 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "ProductController RemoveProduct").
+		Str(log.KEY_TAG, "ProductController RemoveProduct").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "getting pathvalue productId").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "getting pathvalue productId").Logger()
 	logger.Info().Msg("getting pathvalue productId")
 	id, err := uuid.Parse(r.PathValue("productId"))
 	if err != nil {
@@ -230,8 +230,8 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	logger = logger.With().Str(log.KeyProductID, id.String()).Logger()
-	span.SetAttributes(attribute.String(log.KeyProductID, id.String()))
+	logger = logger.With().Str(log.KEY_PRODUCT_ID, id.String()).Logger()
+	span.SetAttributes(attribute.String(log.KEY_PRODUCT_ID, id.String()))
 	logger.Info().Msgf("got pathvalue productId=%s", id.String())
 
 	logger.Info().Msg("decoding request body")
@@ -249,13 +249,13 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 	}
 
 	span.SetAttributes(
-		attribute.String(log.KeyProductName, reqBody.Name),
-		attribute.String(log.KeyProductPrice, reqBody.Price.String()),
-		attribute.Int(log.KeyProductQuantity, reqBody.Quantity),
+		attribute.String(log.KEY_PRODUCT_NAME, reqBody.Name),
+		attribute.String(log.KEY_PRODUCT_PRICE, reqBody.Price.String()),
+		attribute.Int(log.KEY_PRODUCT_QUANTITY, reqBody.Quantity),
 	)
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KeyProcess, "validating.request_body").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "validating.request_body").Logger()
 
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
@@ -275,7 +275,7 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 	}
 	logger.Info().Msg("validated request body")
 
-	logger = logger.With().Str(log.KeyProcess, "remove product").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "remove product").Logger()
 	logger.Info().Msg("remove product")
 	product, err := p.service.RemoveProduct(c, id)
 	if err != nil {
@@ -309,10 +309,10 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "ProductController UpdateProduct").
+		Str(log.KEY_TAG, "ProductController UpdateProduct").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "getting pathValue productId").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "getting pathValue productId").Logger()
 	logger.Info().Msg("getting pathValue productId")
 	id, err := uuid.Parse(r.PathValue("productId"))
 	if err != nil {
@@ -326,10 +326,10 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	logger = logger.With().Str(log.KeyProductID, id.String()).Logger()
+	logger = logger.With().Str(log.KEY_PRODUCT_ID, id.String()).Logger()
 	logger.Info().Msgf("got pathValue productId=%s", id.String())
 
-	logger = logger.With().Str(log.KeyProcess, "decoding request body").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "decoding request body").Logger()
 	logger.Info().Msg("decoding request body")
 	reqBody := request.Product{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
@@ -346,7 +346,7 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KeyProcess, "validating.request_body").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "validating.request_body").Logger()
 
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
@@ -366,7 +366,7 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 	}
 	logger.Info().Msg("validated request body")
 
-	logger = logger.With().Str(log.KeyProcess, "updating product").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "updating product").Logger()
 	logger.Info().Msg("updating product")
 	product, err := p.service.UpdateProduct(c, id, reqBody)
 	if err != nil {

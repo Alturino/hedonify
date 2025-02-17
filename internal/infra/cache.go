@@ -29,10 +29,10 @@ func NewCacheClient(
 	cacheOnce.Do(func() {
 		logger := zerolog.Ctx(c).
 			With().
-			Str(log.KeyTag, "main NewCacheClient").
+			Str(log.KEY_TAG, "main NewCacheClient").
 			Logger()
 
-		logger = logger.With().Str(log.KeyProcess, "initializing redis client").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "initializing redis client").Logger()
 		logger.Info().Msg("initializing redis client")
 		cache = redis.NewClient(&redis.Options{
 			Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
@@ -41,7 +41,7 @@ func NewCacheClient(
 		})
 		logger.Info().Msg("initialized redis client")
 
-		logger = logger.With().Str(log.KeyProcess, "initializing redis otel tracing").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "initializing redis otel tracing").Logger()
 		logger.Info().Msg("initializing redis otel tracing")
 		err := redisotel.InstrumentTracing(cache, redisotel.WithAttributes(semconv.DBSystemRedis))
 		if err != nil {
@@ -50,7 +50,7 @@ func NewCacheClient(
 		}
 		logger.Info().Msg("initialized redis otel tracing")
 
-		logger = logger.With().Str(log.KeyProcess, "initializing redis otel metric").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "initializing redis otel metric").Logger()
 		logger.Info().Msg("initializing redis otel metric")
 		err = redisotel.InstrumentMetrics(cache, redisotel.WithAttributes(semconv.DBSystemRedis))
 		if err != nil {
@@ -59,7 +59,7 @@ func NewCacheClient(
 		}
 		logger.Info().Msg("initialized redis otel metric")
 
-		logger = logger.With().Str(log.KeyProcess, "pinging connection to redis").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "pinging connection to redis").Logger()
 		logger.Info().Msg("pinging connection to redis")
 		err = cache.Ping(c).Err()
 		if err != nil {

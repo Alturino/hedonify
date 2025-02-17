@@ -59,8 +59,8 @@ func InitConfig(c context.Context, filename string) *Config {
 	once.Do(func() {
 		logger := zerolog.Ctx(c).
 			With().
-			Str(log.KeyTag, "main InitConfig").
-			Str(log.KeyProcess, "init config").
+			Str(log.KEY_TAG, "main InitConfig").
+			Str(log.KEY_PROCESS, "init config").
 			Str("filename", filename).
 			Logger()
 
@@ -69,7 +69,7 @@ func InitConfig(c context.Context, filename string) *Config {
 		viper.SetConfigType("yaml")
 		viper.AutomaticEnv()
 
-		logger = logger.With().Str(log.KeyProcess, "reading config").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "reading config").Logger()
 		logger.Info().Msg("reading config")
 		err := viper.ReadInConfig()
 		if err != nil {
@@ -78,7 +78,7 @@ func InitConfig(c context.Context, filename string) *Config {
 		}
 		logger.Info().Msg("read config")
 
-		logger = logger.With().Str(log.KeyProcess, "unmarshaling config").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "unmarshaling config").Logger()
 		logger.Info().Msg("unmarshaling config")
 		err = viper.Unmarshal(&cfg)
 		if err != nil {
@@ -86,7 +86,7 @@ func InitConfig(c context.Context, filename string) *Config {
 			logger.Fatal().Err(err).Msg(err.Error())
 		}
 		config = &cfg
-		logger = logger.With().Any(log.KeyConfig, cfg).Logger()
+		logger = logger.With().Any(log.KEY_CONFIG, cfg).Logger()
 		logger.Info().Msg("marshalled config")
 	})
 	return config

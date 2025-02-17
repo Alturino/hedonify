@@ -43,10 +43,10 @@ func (svc ProductService) InsertProduct(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "ProductService InsertProduct").
+		Str(log.KEY_TAG, "ProductService InsertProduct").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "finding product in database").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "finding product in database").Logger()
 	logger.Info().Msg("finding product in database")
 	span.AddEvent("finding product in database")
 	product, err := svc.queries.FindProductByName(c, param.Name)
@@ -59,7 +59,7 @@ func (svc ProductService) InsertProduct(
 	span.AddEvent("product is not exist in database")
 	logger.Info().Msg("product is not exist in database")
 
-	logger = logger.With().Str(log.KeyProcess, "inserting product to database").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "inserting product to database").Logger()
 	logger.Info().Msg("inserting product to database")
 	product, err = svc.queries.InsertProduct(
 		c,
@@ -81,13 +81,13 @@ func (svc ProductService) InsertProduct(
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Product{}, err
 	}
-	logger = logger.With().Any(log.KeyProduct, product).Logger()
+	logger = logger.With().Any(log.KEY_PRODUCT, product).Logger()
 	logger.Info().Msg("inserted product")
 
 	cacheKey := cache.KEY_PRODUCTS + product.ID.String()
 	logger = logger.With().
-		Str(log.KeyProcess, "inserting product to cache").
-		Str(log.KeyCacheKey, cacheKey).
+		Str(log.KEY_PROCESS, "inserting product to cache").
+		Str(log.KEY_CACHE_KEY, cacheKey).
 		Logger()
 	logger.Info().Msg("inserting product to cache")
 	err = svc.cache.JSONSet(c, cacheKey, "$", product).Err()
@@ -108,9 +108,9 @@ func (svc ProductService) GetProducts(
 	c, span := otel.Tracer.Start(c, "ProductService FindProducts")
 	defer span.End()
 
-	logger := zerolog.Ctx(c).With().Str(log.KeyTag, "ProductService FindProducts").Logger()
+	logger := zerolog.Ctx(c).With().Str(log.KEY_TAG, "ProductService FindProducts").Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "find.product.database").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "find.product.database").Logger()
 	logger.Info().Msg("finding products in database")
 	span.AddEvent("finding products in database")
 	products, err := svc.queries.FindProducts(c)
@@ -120,7 +120,7 @@ func (svc ProductService) GetProducts(
 		logger.Info().Err(err).Msg(err.Error())
 		return nil, err
 	}
-	logger = logger.With().Any(log.KeyProducts, products).Logger()
+	logger = logger.With().Any(log.KEY_PRODUCTS, products).Logger()
 	span.AddEvent("found products in database")
 	logger.Info().Msg("found products in database")
 
@@ -136,20 +136,20 @@ func (svc ProductService) FindProductById(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "ProductService FindProductById").
+		Str(log.KEY_TAG, "ProductService FindProductById").
 		Logger()
 
 	cacheKey := cache.KEY_PRODUCTS + id.String()
 	logger = logger.With().
-		Str(log.KeyProcess, "finding product in cache").
-		Str(log.KeyCacheKey, cacheKey).
+		Str(log.KEY_PROCESS, "finding product in cache").
+		Str(log.KEY_CACHE_KEY, cacheKey).
 		Logger()
 	logger.Info().Msg("finding product in cache")
 	jsonCache, err := svc.cache.JSONGet(c, cacheKey).Result()
 	if err != nil {
 		err = fmt.Errorf("failed to get product from cache with error=%w", err)
 		logger.Info().Err(err).Msg(err.Error())
-		logger = logger.With().Str(log.KeyProcess, "finding product in database").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "finding product in database").Logger()
 		product, err := svc.queries.FindProductById(c, id)
 		if err != nil {
 			err = fmt.Errorf("failed to find product in database with error=%w", err)
@@ -157,14 +157,14 @@ func (svc ProductService) FindProductById(
 			logger.Error().Err(err).Msg(err.Error())
 			return response.Product{}, err
 		}
-		logger = logger.With().Any(log.KeyProduct, product).Logger()
+		logger = logger.With().Any(log.KEY_PRODUCT, product).Logger()
 		logger.Info().Msg("found product in database")
 		return product.Response(), nil
 	}
-	logger = logger.With().RawJSON(log.KeyJsonCache, []byte(jsonCache)).Logger()
+	logger = logger.With().RawJSON(log.KEY_JSON_CACHE, []byte(jsonCache)).Logger()
 	logger.Info().Msg("found product in cache")
 
-	logger = logger.With().Str(log.KeyProcess, "unmarshaling cache").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "unmarshaling cache").Logger()
 	logger.Info().Msg("unmarshaling cache")
 	product := response.Product{}
 	err = json.Unmarshal([]byte(jsonCache), &product)
@@ -174,7 +174,7 @@ func (svc ProductService) FindProductById(
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Product{}, err
 	}
-	logger = logger.With().Any(log.KeyProduct, product).Logger()
+	logger = logger.With().Any(log.KEY_PRODUCT, product).Logger()
 	logger.Info().Msg("unmarshaled product from cache")
 
 	return product, nil
@@ -190,10 +190,10 @@ func (svc ProductService) UpdateProduct(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "ProductService UpdateProduct").
+		Str(log.KEY_TAG, "ProductService UpdateProduct").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "updating product to database").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "updating product to database").Logger()
 	logger.Info().Msg("updating product to database")
 	product, err := svc.queries.UpdateProduct(c, repository.UpdateProductParams{
 		Name: param.Name,
@@ -217,8 +217,8 @@ func (svc ProductService) UpdateProduct(
 	logger.Info().Msg("updated product to database")
 
 	cacheKey := cache.KEY_PRODUCTS + id.String()
-	logger = logger.With().Str(log.KeyProcess, "updating product to cache").
-		Str(log.KeyCacheKey, cacheKey).
+	logger = logger.With().Str(log.KEY_PROCESS, "updating product to cache").
+		Str(log.KEY_CACHE_KEY, cacheKey).
 		Logger()
 	logger.Info().Msg("updating product to cache")
 	err = svc.cache.JSONSet(c, cacheKey, "$", product).Err()
@@ -242,13 +242,13 @@ func (svc ProductService) RemoveProduct(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "ProductService RemoveProduct").
+		Str(log.KEY_TAG, "ProductService RemoveProduct").
 		Logger()
 
 	cacheKey := cache.KEY_PRODUCTS + id.String()
 	logger = logger.With().
-		Str(log.KeyProcess, "removing product in cache").
-		Str(log.KeyCacheKey, cacheKey).
+		Str(log.KEY_PROCESS, "removing product in cache").
+		Str(log.KEY_CACHE_KEY, cacheKey).
 		Logger()
 	logger.Info().Msg("removing product in cache")
 	err := svc.cache.JSONDel(c, cacheKey, "$").Err()
@@ -262,7 +262,7 @@ func (svc ProductService) RemoveProduct(
 	}
 	logger.Info().Msg("removed product in cache")
 
-	logger = logger.With().Str(log.KeyProcess, "removing product in database").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "removing product in database").Logger()
 	logger.Info().Msg("removing product in database")
 	product, err := svc.queries.DeleteProduct(c, id)
 	if err != nil {

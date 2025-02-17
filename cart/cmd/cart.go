@@ -31,27 +31,27 @@ func RunCartService(c context.Context) {
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyAppName, constants.AppCartService).
-		Str(log.KeyTag, "main RunCartService").
+		Str(log.KEY_APP_NAME, constants.APP_CART_SERVICE).
+		Str(log.KEY_TAG, "main RunCartService").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "init config").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "init config").Logger()
 	logger.Info().Msg("initializing config")
 	c = logger.WithContext(c)
-	cfg := config.InitConfig(c, constants.AppCartService)
-	logger = logger.With().Any(log.KeyConfig, cfg).Logger()
+	cfg := config.InitConfig(c, constants.APP_CART_SERVICE)
+	logger = logger.With().Any(log.KEY_CONFIG, cfg).Logger()
 	logger.Info().Msg("initialized config")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing router").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing router").Logger()
 	logger.Info().Msg("initializing router")
 	mux := mux.NewRouter()
-	mux.Use(otelmux.Middleware(constants.AppCartService), middleware.Logging, middleware.Auth)
+	mux.Use(otelmux.Middleware(constants.APP_CART_SERVICE), middleware.Logging, middleware.Auth)
 	logger.Info().Msg("initialized router")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing otel sdk").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing otel sdk").Logger()
 	logger.Info().Msg("initializing otel sdk")
 	c = logger.WithContext(c)
-	otelShutdowns, err := otel.InitOtelSdk(c, constants.AppCartService, cfg.Otel)
+	otelShutdowns, err := otel.InitOtelSdk(c, constants.APP_CART_SERVICE, cfg.Otel)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel sdk with error=%w", err)
 		commonErrors.HandleError(err, span)
@@ -72,24 +72,24 @@ func RunCartService(c context.Context) {
 	}()
 	logger.Info().Msg("initialized otel sdk")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing database").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing database").Logger()
 	logger.Info().Msg("initializing database")
 	c = logger.WithContext(c)
 	db := infra.NewDatabaseClient(c, cfg.Database)
 	defer func() {
-		logger = logger.With().Str(log.KeyProcess, "shutting down database").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "shutting down database").Logger()
 		logger.Info().Msg("shutting down database")
 		db.Close()
 		logger.Info().Msg("shutdown database")
 	}()
 	logger.Info().Msg("initialized database")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing cache").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing cache").Logger()
 	logger.Info().Msg("initializing cache")
 	c = logger.WithContext(c)
 	cache := infra.NewCacheClient(c, cfg.Cache)
 	defer func() {
-		logger = logger.With().Str(log.KeyProcess, "shutting down cache").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "shutting down cache").Logger()
 		logger.Info().Msg("shutting down cache")
 		err = cache.Close()
 		if err != nil {
@@ -102,18 +102,18 @@ func RunCartService(c context.Context) {
 	}()
 	logger.Info().Msg("initialized cache")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing cart service").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing cart service").Logger()
 	logger.Info().Msg("initializing cart service")
 	queries := repository.New(db)
 	cartService := service.NewCartService(db, queries, cache)
 	logger.Info().Msg("initialized cart service")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing cart controller").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing cart controller").Logger()
 	logger.Info().Msg("initializing cart controller")
 	controller.AttachCartController(mux, &cartService)
 	logger.Info().Msg("initialized cart controller")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing server").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing server").Logger()
 	logger.Info().Msg("initializing server")
 	httpServer := http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Application.Host, cfg.Application.Port),
@@ -125,10 +125,10 @@ func RunCartService(c context.Context) {
 	logger.Info().Msg("initialized server")
 
 	go func() {
-		logger = logger.With().Str(log.KeyProcess, "start server").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "start server").Logger()
 		logger.Info().Msgf("start listening request at %s", httpServer.Addr)
 
-		logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "shutdown server").Logger()
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			err = fmt.Errorf("error=%w occured while server is running", err)
 			commonErrors.HandleError(err, span)
@@ -147,11 +147,11 @@ func RunCartService(c context.Context) {
 	}()
 
 	<-c.Done()
-	logger = logger.With().Str(log.KeyProcess, "shutdown server").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "shutdown server").Logger()
 	logger.Info().Msg("received interuption signal shutting down")
 	logger.Info().Msg("shutting down http server")
 
-	logger = logger.With().Str(log.KeyProcess, "shutting down http server").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "shutting down http server").Logger()
 	logger.Info().Msg("shutting down http server")
 	err = httpServer.Shutdown(c)
 	if err != nil {

@@ -40,10 +40,10 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "UserController Login").
+		Str(log.KEY_TAG, "UserController Login").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "decoding requestbody").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "decoding requestbody").Logger()
 	logger.Info().Msg("decoding request body")
 	reqBody := request.LoginRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
@@ -61,7 +61,7 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KeyProcess, "validating.request_body").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "validating.request_body").Logger()
 
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
@@ -81,7 +81,7 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	logger.Info().Msg("validated request body")
 
-	logger = logger.With().Str(log.KeyProcess, "login").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "login").Logger()
 	logger.Info().Msg("login")
 	token, err := u.service.Login(c, reqBody)
 	if err != nil && errors.Is(err, userErrors.ErrUserNotFound) {
@@ -116,16 +116,16 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 
 	logger := zerolog.Ctx(r.Context()).
 		With().
-		Str(log.KeyTag, "UserController Register").
+		Str(log.KEY_TAG, "UserController Register").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "decoding request body").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "decoding request body").Logger()
 	logger.Info().Msg("decoding request body")
 	reqBody := request.Register{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		logger.Error().
 			Err(err).
-			Str(log.KeyProcess, "validating requestbody").
+			Str(log.KEY_PROCESS, "validating requestbody").
 			Msgf("failed decoding request body with error=%s", err.Error())
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
@@ -136,7 +136,7 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 	}
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KeyProcess, "validating request body").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "validating request body").Logger()
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
 	logger.Info().Msg("initialized validator")
@@ -156,7 +156,7 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 	}
 	logger.Info().Msg("validated request body")
 
-	logger = logger.With().Str(log.KeyProcess, "registering user").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "registering user").Logger()
 	logger.Info().Msg("registering user")
 	user, err := u.service.Register(c, reqBody)
 	if err != nil {
@@ -197,16 +197,16 @@ func (u UserController) FindUserById(w http.ResponseWriter, r *http.Request) {
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "UserController FindUserById").
+		Str(log.KEY_TAG, "UserController FindUserById").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "parsing path values").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "parsing path values").Logger()
 	logger.Info().Msg("parsing path values")
 	pathValues := mux.Vars(r)
-	logger = logger.With().Any(log.KeyPathValues, pathValues).Logger()
+	logger = logger.With().Any(log.KEY_PATH_VALUES, pathValues).Logger()
 	logger.Info().Msg("parsed path values")
 
-	logger = logger.With().Str(log.KeyProcess, "getting userId in pathValues").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "getting userId in pathValues").Logger()
 	logger.Info().Msg("getting userId in pathValues")
 	pathValue, ok := pathValues["userId"]
 	if !ok {
@@ -220,10 +220,10 @@ func (u UserController) FindUserById(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger = logger.With().Str(log.KeyUserID, pathValue).Logger()
+	logger = logger.With().Str(log.KEY_USER_ID, pathValue).Logger()
 	logger.Info().Msg("userId found in pathValues")
 
-	logger = logger.With().Str(log.KeyProcess, "validating userId").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "validating userId").Logger()
 	logger.Info().Msg("validating userId")
 	userId, err := uuid.Parse(pathValue)
 	if err != nil {
@@ -237,10 +237,10 @@ func (u UserController) FindUserById(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger = logger.With().Str(log.KeyUserID, userId.String()).Logger()
+	logger = logger.With().Str(log.KEY_USER_ID, userId.String()).Logger()
 	logger.Info().Msg("validated userId")
 
-	logger = logger.With().Str(log.KeyProcess, "finding user by id").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "finding user by id").Logger()
 	logger.Info().Msg("finding user by id")
 	c = logger.WithContext(c)
 	user, err := u.service.FindUserById(c, request.FindUserById{ID: userId})
@@ -255,7 +255,7 @@ func (u UserController) FindUserById(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger = logger.With().Any(log.KeyUser, user).Logger()
+	logger = logger.With().Any(log.KEY_USER, user).Logger()
 	logger.Info().Msg("found user by id")
 
 	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{

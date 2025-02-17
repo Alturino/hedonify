@@ -20,10 +20,10 @@ func InitMetricProvider(c context.Context, endpoint string) (*metric.MeterProvid
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "main InitMetricProvider").
+		Str(log.KEY_TAG, "main InitMetricProvider").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "initializing metricExporter").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing metricExporter").Logger()
 	logger.Info().Msg("initializing metricExporter")
 	metricExporter, err := otlpmetricgrpc.New(
 		c,
@@ -40,7 +40,7 @@ logger.Error().Err(err).Msg(err.Error())
 	}
 	logger.Info().Msg("initialized metricExporter")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing meterProvider").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing meterProvider").Logger()
 	logger.Info().Msg("initializing meterProvider")
 	meterProvider := metric.NewMeterProvider(
 		metric.WithReader(

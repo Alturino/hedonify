@@ -46,10 +46,10 @@ func (ctrl OrderController) FindOrderById(w http.ResponseWriter, r *http.Request
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "OrderController FindOrderById").
+		Str(log.KEY_TAG, "OrderController FindOrderById").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "validating orderId").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "validating orderId").Logger()
 	logger.Info().Msg("validating orderId")
 	pathValues := mux.Vars(r)
 	orderId, err := uuid.Parse(pathValues["orderId"])
@@ -61,7 +61,7 @@ func (ctrl OrderController) FindOrderById(w http.ResponseWriter, r *http.Request
 	}
 	logger.Info().Msg("validated orderId")
 
-	logger = logger.With().Str(log.KeyProcess, "finding orders").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "finding orders").Logger()
 	logger.Info().Msg("finding orders")
 	c = logger.WithContext(c)
 	orders, err := ctrl.service.FindOrderById(c, request.FindOrderById{OrderId: orderId})
@@ -75,7 +75,7 @@ func (ctrl OrderController) FindOrderById(w http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	logger = logger.With().Any(log.KeyOrders, orders).Logger()
+	logger = logger.With().Any(log.KEY_ORDERS, orders).Logger()
 	logger.Info().Msg("found orders")
 
 	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
@@ -94,11 +94,11 @@ func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "OrderController FindOrders").
-		Str(log.KeyProcess, "finding orders").
+		Str(log.KEY_TAG, "OrderController FindOrders").
+		Str(log.KEY_PROCESS, "finding orders").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "validating userId and orderId").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "validating userId and orderId").Logger()
 	logger.Info().Msg("validating userId")
 	userId, err := uuid.Parse(r.URL.Query().Get("userId"))
 	if err != nil {
@@ -128,12 +128,12 @@ func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger = logger.With().
-		Str(log.KeyOrderID, orderId.String()).
-		Str(log.KeyUserID, userId.String()).
+		Str(log.KEY_ORDER_ID, orderId.String()).
+		Str(log.KEY_USER_ID, userId.String()).
 		Logger()
 	logger.Info().Msg("validated orderId")
 
-	logger = logger.With().Str(log.KeyProcess, "finding orders").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "finding orders").Logger()
 	logger.Info().Msg("finding orders")
 	c = logger.WithContext(c)
 	orders, err := ctrl.service.FindOrders(
@@ -151,7 +151,7 @@ func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger.Info().Any(log.KeyOrders, orders).Msg("found orders")
+	logger.Info().Any(log.KEY_ORDERS, orders).Msg("found orders")
 
 	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
@@ -169,10 +169,10 @@ func (ctrl OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) 
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "OrderController-CreateOrder").
+		Str(log.KEY_TAG, "OrderController-CreateOrder").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "getting userId from jwtToken").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "getting userId from jwtToken").Logger()
 	logger.Info().Msg("getting userId from jwtToken")
 	userId, err := common.UserIdFromJwtToken(c)
 	if err != nil {
@@ -186,10 +186,10 @@ func (ctrl OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	logger = logger.With().Str(log.KeyUserID, userId.String()).Logger()
+	logger = logger.With().Str(log.KEY_USER_ID, userId.String()).Logger()
 	logger.Info().Msgf("got userId=%s", userId.String())
 
-	logger = logger.With().Str(log.KeyProcess, "decoding request body").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "decoding request body").Logger()
 	logger.Info().Msg("decoding request body")
 	param := request.CreateOrder{}
 	err = json.NewDecoder(r.Body).Decode(&param)
@@ -205,17 +205,17 @@ func (ctrl OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	logger = logger.With().
-		Str(log.KeyOrderID, param.ID.String()).
-		Str(log.KeyUserID, param.UserId.String()).
+		Str(log.KEY_ORDER_ID, param.ID.String()).
+		Str(log.KEY_USER_ID, param.UserId.String()).
 		Logger()
 	param.TraceLink = trace.LinkFromContext(c)
 	span.SetAttributes(
-		attribute.String(log.KeyOrderID, param.ID.String()),
-		attribute.String(log.KeyUserID, param.UserId.String()),
+		attribute.String(log.KEY_ORDER_ID, param.ID.String()),
+		attribute.String(log.KEY_USER_ID, param.UserId.String()),
 	)
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KeyProcess, "validating request body").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "validating request body").Logger()
 	logger.Info().Msg("validating request body")
 	validate := validator.New(validator.WithRequiredStructEnabled())
 	err = validate.StructCtx(c, param)
@@ -232,7 +232,7 @@ func (ctrl OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) 
 	}
 	logger.Info().Msg("validated request body")
 
-	logger = logger.With().Str(log.KeyProcess, "creating order").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "creating order").Logger()
 	logger.Info().Msg("creating order")
 	param.ResultChannel = make(chan response.Result)
 	defer close(param.ResultChannel)

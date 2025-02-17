@@ -50,8 +50,8 @@ func (s OrderService) FindOrderById(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "OrderService FindOrderById").
-		Str(log.KeyProcess, "finding order by id").
+		Str(log.KEY_TAG, "OrderService FindOrderById").
+		Str(log.KEY_PROCESS, "finding order by id").
 		Logger()
 
 	logger.Info().Msg("finding order by id")
@@ -67,7 +67,7 @@ func (s OrderService) FindOrderById(
 	}
 	logger.Info().Msg("found order by id")
 
-	logger = logger.With().Str(log.KeyProcess, "mapping order").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "mapping order").Logger()
 	logger.Info().Msg("mapping order")
 	res, err := order.ResponseOrder()
 	if err != nil {
@@ -78,7 +78,7 @@ func (s OrderService) FindOrderById(
 	}
 	logger.Info().Msg("mapped order")
 
-	logger = logger.With().Str(log.KeyProcess, "finding order item by id").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "finding order item by id").Logger()
 	logger.Info().Msgf("finding order item by orderId=%s", param.OrderId)
 	repoOrderItem, err := s.queries.FindOrderItemById(c, param.OrderId)
 	if err != nil {
@@ -88,11 +88,11 @@ func (s OrderService) FindOrderById(
 		return response.Order{}, err
 	}
 	logger.Info().
-		Any(log.KeyOrderItems, repoOrderItem).
+		Any(log.KEY_ORDER_ITEMS, repoOrderItem).
 		Msgf("found order item by id=%s", param.OrderId)
 
 	logger = logger.With().
-		Str(log.KeyProcess, "mapping orderItems").
+		Str(log.KEY_PROCESS, "mapping orderItems").
 		Logger()
 
 	logger.Info().Msgf("mapping orderItems")
@@ -124,10 +124,10 @@ func (s OrderService) FindOrders(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "OrderService FindOrders").
-		Str(log.KeyProcess, "finding order by userId").
-		Str(log.KeyUserID, param.UserId.String()).
-		Str(log.KeyOrderID, param.OrderId.String()).
+		Str(log.KEY_TAG, "OrderService FindOrders").
+		Str(log.KEY_PROCESS, "finding order by userId").
+		Str(log.KEY_USER_ID, param.UserId.String()).
+		Str(log.KEY_ORDER_ID, param.OrderId.String()).
 		Logger()
 
 	logger.Info().Msg("finding orders")
@@ -143,7 +143,7 @@ func (s OrderService) FindOrders(
 		logger.Error().Err(err).Msg(err.Error())
 		return nil, err
 	}
-	logger.Info().Any(log.KeyOrders, orders).Msg("found orders")
+	logger.Info().Any(log.KEY_ORDERS, orders).Msg("found orders")
 
 	return orders, nil
 }
@@ -158,11 +158,11 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "OrderService BatchCreateOrder").
-		Any(log.KeyOrders, params).
+		Str(log.KEY_TAG, "OrderService BatchCreateOrder").
+		Any(log.KEY_ORDERS, params).
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "merge-order-item").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "merge-order-item").Logger()
 	span.AddEvent("merging order items quantity")
 	type mergedOrderItem struct {
 		Items               []request.OrderItem `json:"items"`
@@ -194,14 +194,14 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 		}
 	}
 	logger = logger.With().
-		Any(log.KeyOrderItemsMerged, mapMergedOrderItem).
-		Any(log.KeyOrderAndItems, mapOrder).
-		Any(log.KeyProductIDs, productIds).
+		Any(log.KEY_ORDER_ITEMS_MERGED, mapMergedOrderItem).
+		Any(log.KEY_ORDER_ITEMS, mapOrder).
+		Any(log.KEY_PRODUCT_IDS, productIds).
 		Logger()
 	logger.Info().Msg("merged order items quantity")
 	span.AddEvent("merged order items quantity")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing-transaction").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing-transaction").Logger()
 	tx, err := s.pool.BeginTx(c, pgx.TxOptions{})
 	if err != nil {
 		err = fmt.Errorf("failed initializing transaction with error=%w", err)
@@ -230,7 +230,7 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	logger.Info().Msg("initialized transaction")
 	span.AddEvent("initialized transaction")
 
-	logger = logger.With().Str(log.KeyProcess, "check-quantity").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "check-quantity").Logger()
 	span.AddEvent("get products")
 	products, err := s.queries.WithTx(tx).FindProductsByIds(c, productIds)
 	if err != nil {
@@ -240,7 +240,7 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 		returnOrderError(c, params, err)
 		return err
 	}
-	logger = logger.With().Any(log.KeyProducts, products).Logger()
+	logger = logger.With().Any(log.KEY_PRODUCTS, products).Logger()
 	logger.Info().Msg("got products")
 	span.AddEvent("got products")
 
@@ -262,9 +262,9 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 			span.AddEvent(
 				"poping back order item from order",
 				trace.WithAttributes(
-					attribute.String(log.KeyOrderID, orderId),
-					attribute.String(log.KeyOrderItemID, lastOrderItem.ID.String()),
-					attribute.String(log.KeyProductID, lastOrderItem.ProductID.String()),
+					attribute.String(log.KEY_ORDER_ID, orderId),
+					attribute.String(log.KEY_ORDER_ITEM_ID, lastOrderItem.ID.String()),
+					attribute.String(log.KEY_PRODUCT_ID, lastOrderItem.ProductID.String()),
 				),
 			)
 			existing := mapOrder[orderId]
@@ -273,22 +273,22 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 			span.AddEvent(
 				"poped back order item from order",
 				trace.WithAttributes(
-					attribute.String(log.KeyOrderID, orderId),
-					attribute.String(log.KeyOrderItemID, lastOrderItem.ID.String()),
-					attribute.String(log.KeyProductID, lastOrderItem.ProductID.String()),
+					attribute.String(log.KEY_ORDER_ID, orderId),
+					attribute.String(log.KEY_ORDER_ITEM_ID, lastOrderItem.ID.String()),
+					attribute.String(log.KEY_PRODUCT_ID, lastOrderItem.ProductID.String()),
 				),
 			)
 		}
 		mapMergedOrderItem[productId] = merged
 	}
 	logger = logger.With().
-		Any(log.KeyOrderItemsMerged, mapMergedOrderItem).
-		Any(log.KeyOrderAndItems, mapOrder).
+		Any(log.KEY_ORDER_ITEMS_MERGED, mapMergedOrderItem).
+		Any(log.KEY_ORDER_AND_ORDER_ITEMS, mapOrder).
 		Logger()
 	logger.Info().Msg("checked and decreased product quantity")
 	span.AddEvent("checked and decreased product quantity")
 
-	logger = logger.With().Str(log.KeyProcess, "update-product-quantity").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "update-product-quantity").Logger()
 	span.AddEvent("update product quantity")
 	var sb strings.Builder
 	for productId, item := range mapMergedOrderItem {
@@ -319,7 +319,7 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	logger.Info().Msg("updated product quantity")
 	span.AddEvent("updated product quantity")
 
-	logger = logger.With().Str(log.KeyProcess, "create-order").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "create-order").Logger()
 	span.AddEvent("inserting orders")
 	insertOrderArgs := []repository.InsertOrdersParams{}
 	for _, item := range mapOrder {
@@ -408,7 +408,7 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 		mapResponseOrder[orderId] = orderResponse
 	}
 
-	logger = logger.With().Str(log.KeyProcess, "commit-transaction").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "commit-transaction").Logger()
 	span.AddEvent("committing transaction")
 	err = tx.Commit(c)
 	if err != nil {
@@ -453,8 +453,8 @@ func returnOrderError(c context.Context, params []request.CreateOrder, err error
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "OrderService-returnOrderResult").
-		Str(log.KeyProcess, "returning order error").
+		Str(log.KEY_TAG, "OrderService-returnOrderResult").
+		Str(log.KEY_PROCESS, "returning order error").
 		Logger()
 
 	var wg sync.WaitGroup

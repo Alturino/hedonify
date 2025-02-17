@@ -23,7 +23,7 @@ func Auth(next http.Handler) http.Handler {
 
 		logger := zerolog.Ctx(c).
 			With().
-			Str(log.KeyTag, "middleware Auth").
+			Str(log.KEY_TAG, "middleware Auth").
 			Logger()
 
 		if authorization == "" {
@@ -42,7 +42,7 @@ func Auth(next http.Handler) http.Handler {
 		}
 		logger.Info().Msg("authorization header checked")
 
-		logger = logger.With().Str(log.KeyProcess, "verifying token").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "verifying token").Logger()
 		logger.Info().Msg("verifying token")
 		token := strings.Split(authorization, " ")[1]
 		c = logger.WithContext(c)
@@ -60,7 +60,7 @@ func Auth(next http.Handler) http.Handler {
 		}
 		logger.Info().Msg("verified token")
 
-		logger = logger.With().Str(log.KeyProcess, "attaching jwt token to context").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "attaching jwt token to context").Logger()
 		logger.Info().Msg("attaching jwt token to context")
 		c = common.AttachJwtToken(c, jwt)
 		c = logger.WithContext(c)

@@ -29,9 +29,9 @@ func (wrk OrderWorker) StartWorker(c context.Context, wg *sync.WaitGroup) {
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "OrderWorker-StartWorker").
-		Str(log.KeyProcess, "starting-worker").
-		Str(log.KeyAppName, constants.AppOrderWorker).
+		Str(log.KEY_TAG, "OrderWorker-StartWorker").
+		Str(log.KEY_PROCESS, "starting-worker").
+		Str(log.KEY_APP_NAME, constants.APP_ORDER_WORKER).
 		Logger()
 
 	ticker := time.NewTicker(time.Millisecond * 500).C
@@ -46,7 +46,7 @@ func (wrk OrderWorker) StartWorker(c context.Context, wg *sync.WaitGroup) {
 				continue
 			}
 			requestID := uuid.NewString()
-			logger = logger.With().Str(log.KeyRequestID, requestID).Logger()
+			logger = logger.With().Str(log.KEY_REQUEST_ID, requestID).Logger()
 			logger.Info().Msg("start batch create order")
 			c = logger.WithContext(c)
 			c = log.AttachRequestIDToContext(c, requestID)
@@ -59,7 +59,7 @@ func (wrk OrderWorker) StartWorker(c context.Context, wg *sync.WaitGroup) {
 			logger.Info().Msg("batch create order completed")
 			batch = batch[:0]
 		case order := <-wrk.queue:
-			logger = logger.With().Any(log.KeyOrder, order).Logger()
+			logger = logger.With().Any(log.KEY_ORDER, order).Logger()
 			logger.Info().Msg("received request create order")
 			logger.Info().Msg("inserting order to batches")
 			batch = append(batch, order)

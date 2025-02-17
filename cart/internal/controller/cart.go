@@ -42,10 +42,10 @@ func (t CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "CartController InsertCart").
+		Str(log.KEY_TAG, "CartController InsertCart").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "decoding requestbody").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "decoding requestbody").Logger()
 	logger.Info().Msg("decoding requestbody")
 	reqBody := request.Cart{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
@@ -61,12 +61,12 @@ func (t CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 	}
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KeyProcess, "validating requestbody").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "validating requestbody").Logger()
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
 	logger.Info().Msg("initialized validator")
 
-	logger = logger.With().Str(log.KeyProcess, "validating requestbody").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "validating requestbody").Logger()
 	logger.Info().Msg("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%w", err)
@@ -81,7 +81,7 @@ func (t CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 	}
 	logger.Info().Msg("validated request body")
 
-	logger = logger.With().Str(log.KeyProcess, "getting userId from jwtToken").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "getting userId from jwtToken").Logger()
 	logger.Info().Msg("getting userId from jwtToken")
 	userId, err := common.UserIdFromJwtToken(c)
 	if err != nil {
@@ -95,10 +95,10 @@ func (t CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger = logger.With().Str(log.KeyUserID, userId.String()).Logger()
+	logger = logger.With().Str(log.KEY_USER_ID, userId.String()).Logger()
 	logger.Info().Msgf("got userId=%s", userId.String())
 
-	logger = logger.With().Str(log.KeyProcess, "inserting cart").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "inserting cart").Logger()
 	logger.Info().Msg("inserting cart")
 	c = logger.WithContext(c)
 	cart, err := t.service.InsertCart(c, reqBody, userId)
@@ -130,8 +130,8 @@ func (t CartController) FindCartById(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 
 	logger := zerolog.Ctx(c).With().
-		Str(log.KeyTag, "CartController FindCartById").
-		Str(log.KeyProcess, "validating uuid").
+		Str(log.KEY_TAG, "CartController FindCartById").
+		Str(log.KEY_PROCESS, "validating uuid").
 		Logger()
 
 	logger.Info().Msg("validating uuid")
@@ -149,12 +149,12 @@ func (t CartController) FindCartById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger = logger.With().
-		Str(log.KeyCartID, cartId.String()).
-		Any(log.KeyPathValues, pathValues).
+		Str(log.KEY_CART_ID, cartId.String()).
+		Any(log.KEY_PATH_VALUES, pathValues).
 		Logger()
 	logger.Info().Msgf("validated uuid cartId=%s", cartId.String())
 
-	logger = logger.With().Str(log.KeyProcess, "getting userId from jwtToken").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "getting userId from jwtToken").Logger()
 	logger.Info().Msg("getting userId from jwtToken")
 	userId, err := common.UserIdFromJwtToken(c)
 	if err != nil {
@@ -168,11 +168,11 @@ func (t CartController) FindCartById(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger = logger.With().Str(log.KeyUserID, userId.String()).Logger()
+	logger = logger.With().Str(log.KEY_USER_ID, userId.String()).Logger()
 	logger.Info().Msgf("got userId=%s", userId.String())
 
 	logger = logger.With().
-		Str(log.KeyProcess, fmt.Sprintf("finding cartId=%s", cartId.String())).
+		Str(log.KEY_PROCESS, fmt.Sprintf("finding cartId=%s", cartId.String())).
 		Logger()
 	logger.Info().Msgf("finding cartId=%s", cartId.String())
 	c = logger.WithContext(c)
@@ -188,7 +188,7 @@ func (t CartController) FindCartById(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger = logger.With().Any(log.KeyCart, cart).Logger()
+	logger = logger.With().Any(log.KEY_CART, cart).Logger()
 	logger.Info().Msgf("found cartId=%s", cartId.String())
 
 	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
@@ -207,8 +207,8 @@ func (t CartController) RemoveCartItem(w http.ResponseWriter, r *http.Request) {
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "CartController RemoveCartItem").
-		Str(log.KeyProcess, "validating cartId").
+		Str(log.KEY_TAG, "CartController RemoveCartItem").
+		Str(log.KEY_PROCESS, "validating cartId").
 		Logger()
 
 	logger.Info().Msg("validating cartId is valid uuid")
@@ -224,10 +224,10 @@ func (t CartController) RemoveCartItem(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger = logger.With().Str(log.KeyCartID, cartId.String()).Logger()
+	logger = logger.With().Str(log.KEY_CART_ID, cartId.String()).Logger()
 	logger.Info().Msgf("valid cartId=%s", cartId.String())
 
-	logger = logger.With().Str(log.KeyProcess, "validating cartItemId").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "validating cartItemId").Logger()
 	logger.Info().Msg("validating cartItemId is valid uuid")
 	cartItemId, err := uuid.Parse(r.PathValue("cartItemId"))
 	if err != nil {
@@ -241,10 +241,10 @@ func (t CartController) RemoveCartItem(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger = logger.With().Str(log.KeyCartItemId, cartItemId.String()).Logger()
+	logger = logger.With().Str(log.KEY_CART_ITEM_ID, cartItemId.String()).Logger()
 	logger.Info().Msgf("valid cartItemId=%s", cartItemId.String())
 
-	logger = logger.With().Str(log.KeyProcess, "removing cart item").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "removing cart item").Logger()
 	logger.Info().Msg("removing cart item")
 	c = logger.WithContext(c)
 	err = t.service.RemoveCartItem(c, request.RemoveCartItem{ID: cartItemId, CartId: cartId})
@@ -268,7 +268,7 @@ func (t CartController) RemoveCartItem(w http.ResponseWriter, r *http.Request) {
 
 func (t CartController) CheckoutCart(w http.ResponseWriter, r *http.Request) {
 	requestId := log.RequestIDFromContext(r.Context())
-	requestIdAttr := attribute.String(log.KeyRequestID, requestId)
+	requestIdAttr := attribute.String(log.KEY_REQUEST_ID, requestId)
 	c, span := otel.Tracer.Start(
 		r.Context(),
 		"CartController CheckoutCart",
@@ -278,16 +278,16 @@ func (t CartController) CheckoutCart(w http.ResponseWriter, r *http.Request) {
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "CartController CheckoutCart").
+		Str(log.KEY_TAG, "CartController CheckoutCart").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "getting path values").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "getting path values").Logger()
 	logger.Info().Msg("getting path values")
 	pathValues := mux.Vars(r)
-	logger = logger.With().Any(log.KeyPathValues, pathValues).Logger()
+	logger = logger.With().Any(log.KEY_PATH_VALUES, pathValues).Logger()
 	logger.Info().Msg("got path values")
 
-	logger = logger.With().Str(log.KeyProcess, "validating cartId").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "validating cartId").Logger()
 	logger.Info().Msg("validating cartId")
 	cartId, err := uuid.Parse(pathValues["cartId"])
 	if err != nil {
@@ -301,10 +301,10 @@ func (t CartController) CheckoutCart(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger = logger.With().Str(log.KeyCartID, cartId.String()).Logger()
+	logger = logger.With().Str(log.KEY_CART_ID, cartId.String()).Logger()
 	logger.Info().Msgf("validated cartId=%s", cartId.String())
 
-	logger = logger.With().Str(log.KeyProcess, "getting userId from jwtToken").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "getting userId from jwtToken").Logger()
 	logger.Info().Msg("getting userId from jwtToken")
 	userId, err := common.UserIdFromJwtToken(c)
 	if err != nil {
@@ -318,10 +318,10 @@ func (t CartController) CheckoutCart(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger = logger.With().Str(log.KeyUserID, userId.String()).Logger()
+	logger = logger.With().Str(log.KEY_USER_ID, userId.String()).Logger()
 	logger.Info().Msgf("got userId=%s", userId.String())
 
-	logger = logger.With().Str(log.KeyProcess, "checkout cart").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "checkout cart").Logger()
 	logger.Info().Msg("checking out cart cart")
 	jwt := common.JwtTokenFromContext(c)
 	c = logger.WithContext(c)

@@ -39,13 +39,13 @@ func NewDatabaseClient(
 
 		logger := zerolog.Ctx(c).
 			With().
-			Str(log.KeyTag, "main NewDatabaseClient").
-			Str(log.KeyProcess, "connecting to database").
+			Str(log.KEY_TAG, "main NewDatabaseClient").
+			Str(log.KEY_PROCESS, "connecting to database").
 			Logger()
 
 		logger.Info().Msg("connecting to database")
 
-		logger = logger.With().Str(log.KeyProcess, "initializing postgresUrl").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "initializing postgresUrl").Logger()
 		logger.Info().Msg("initializing postgresUrl")
 		postgresUrl := fmt.Sprintf(
 			"postgres://%s:%s@%s:%d/%s?sslmode=disable",
@@ -55,10 +55,10 @@ func NewDatabaseClient(
 			int(config.Port),
 			config.Name,
 		)
-		logger = logger.With().Str(log.KeyDbURL, postgresUrl).Logger()
+		logger = logger.With().Str(log.KEY_DB_URL, postgresUrl).Logger()
 		logger.Info().Msg("initialized postgresUrl")
 
-		logger = logger.With().Str(log.KeyProcess, "initializing pgx config").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "initializing pgx config").Logger()
 		logger.Info().Msgf("initializing pgx config")
 		pgxConfig, err := pgxpool.ParseConfig(postgresUrl)
 		if err != nil {
@@ -72,14 +72,14 @@ func NewDatabaseClient(
 			return nil
 		}
 
-		logger = logger.With().Str(log.KeyProcess, "attaching otel tracer to pgx").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "attaching otel tracer to pgx").Logger()
 		logger.Info().Msgf("attaching otel tracer to pgx")
 		pgxConfig.ConnConfig.Tracer = otelpgx.NewTracer(
 			otelpgx.WithAttributes(semconv.DBSystemPostgreSQL),
 		)
 		logger.Info().Msgf("attached otel tracer to pgx")
 
-		logger = logger.With().Str(log.KeyProcess, "creating connection pool").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "creating connection pool").Logger()
 		logger.Info().Msg("creating connection pool")
 		pool, err = pgxpool.NewWithConfig(c, pgxConfig)
 		if err != nil {
@@ -88,7 +88,7 @@ func NewDatabaseClient(
 		}
 		logger.Info().Msg("created connection pool")
 
-		logger = logger.With().Str(log.KeyProcess, "ping db").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "ping db").Logger()
 		logger.Info().Msg("ping db")
 		err = pool.Ping(c)
 		if err != nil {
@@ -97,12 +97,12 @@ func NewDatabaseClient(
 		}
 		logger.Info().Msg("successed ping db")
 
-		logger = logger.With().Str(log.KeyProcess, "creating sql.DB instance").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "creating sql.DB instance").Logger()
 		logger.Info().Msg("creating sql.DB instance")
 		db := stdlib.OpenDBFromPool(pool)
 		logger.Info().Msg("created sql.DB instance")
 
-		logger = logger.With().Str(log.KeyProcess, "initializing db driver").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "initializing db driver").Logger()
 		logger.Info().Msg("initializing db driver")
 		driver, err := postgres.WithInstance(db, &postgres.Config{})
 		if err != nil {
@@ -111,7 +111,7 @@ func NewDatabaseClient(
 		}
 		logger.Info().Msg("initialized db driver")
 
-		logger = logger.With().Str(log.KeyProcess, "initializing migration").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "initializing migration").Logger()
 		logger.Info().Msg("initializing migration")
 		migration, err := migrate.NewWithDatabaseInstance(config.MigrationPath, postgresUrl, driver)
 		if err != nil {
@@ -120,7 +120,7 @@ func NewDatabaseClient(
 		}
 		logger.Info().Msg("initialized migration")
 
-		logger = logger.With().Str(log.KeyProcess, "migration down").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "migration down").Logger()
 		logger.Info().Msg("migration down")
 		err = migration.Down()
 		if err != nil && !errors.Is(err, migrate.ErrNoChange) {
@@ -129,7 +129,7 @@ func NewDatabaseClient(
 		}
 		logger.Info().Msg("successed migration down")
 
-		logger = logger.With().Str(log.KeyProcess, "migration up").Logger()
+		logger = logger.With().Str(log.KEY_PROCESS, "migration up").Logger()
 		logger.Info().Msg("migration up")
 		err = migration.Up()
 		if err != nil && !errors.Is(err, migrate.ErrNoChange) {
@@ -144,7 +144,7 @@ func NewDatabaseClient(
 		db.SetMaxIdleConns(config.MinConnections)
 
 		logger.Info().
-			Str(log.KeyProcess, "connecting to database").
+			Str(log.KEY_PROCESS, "connecting to database").
 			Msg("successed connecting to database")
 	})
 	return pool

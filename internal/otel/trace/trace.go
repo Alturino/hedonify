@@ -25,10 +25,10 @@ func InitTracerProvider(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KeyTag, "main InitTracerProvider").
+		Str(log.KEY_TAG, "main InitTracerProvider").
 		Logger()
 
-	logger = logger.With().Str(log.KeyProcess, "initializing traceExporter").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing traceExporter").Logger()
 	logger.Info().Msg("initializing traceExporter")
 	traceExporter, err := otlptracegrpc.New(
 		c,
@@ -43,7 +43,7 @@ func InitTracerProvider(
 	}
 	logger.Info().Msg("initialized traceExporter")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing traceRes").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing traceRes").Logger()
 	logger.Info().Msg("initializing traceRes")
 	traceRes, err := resource.Merge(
 		resource.Default(),
@@ -57,7 +57,7 @@ func InitTracerProvider(
 	}
 	logger.Info().Msg("initialized traceRes")
 
-	logger = logger.With().Str(log.KeyProcess, "initializing traceProvider").Logger()
+	logger = logger.With().Str(log.KEY_PROCESS, "initializing traceProvider").Logger()
 	logger.Info().Msg("initializing traceProvider")
 	traceProvider := trace.NewTracerProvider(
 		trace.WithBatcher(traceExporter, trace.WithBatchTimeout(5*time.Second)),

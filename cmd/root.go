@@ -15,8 +15,8 @@ import (
 func Start() {
 	logger := log.InitLogger("/var/log/ecommerce.log").
 		With().
-		Str(log.KeyAppName, constants.MainEcommerce).
-		Str(log.KeyTag, "main Start").
+		Str(log.KEY_APP_NAME, constants.APP_MAIN_ECOMMERCE).
+		Str(log.KEY_TAG, "main Start").
 		Logger()
 
 	logger.Info().Msg("adding listener for SIGINT and SIGTERM")

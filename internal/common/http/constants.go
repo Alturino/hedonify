@@ -1,8 +1,9 @@
 package http
 
 const (
-	HeaderContentType = "Content-Type"
-	HeaderValueJson   = "application/json"
+	KEY_HEADER_CONTENT_TYPE       = "Content-Type"
+	HEADER_VALUE_APPLICATION_JSON = "application/json"
+	KEY_HEADER_REQUEST_ID         = "X-REQUEST-ID"
 )
 
 const (
