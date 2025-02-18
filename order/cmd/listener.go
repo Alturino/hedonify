@@ -35,14 +35,14 @@ func (wrk OrderWorker) StartWorker(c context.Context, wg *sync.WaitGroup) {
 		Str(log.KEY_APP_NAME, constants.APP_ORDER_WORKER).
 		Logger()
 
-	ticker := time.NewTicker(time.Millisecond * 500).C
-	batch := make([]request.CreateOrder, 0, 15)
+	tick := time.Tick(time.Millisecond * 300)
+	batch := make([]request.CreateOrder, 0, 50)
 
 	for {
 		select {
 		case <-c.Done():
 			return
-		case <-ticker:
+		case <-tick:
 			if len(batch) == 0 {
 				continue
 			}
