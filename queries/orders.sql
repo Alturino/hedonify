@@ -52,4 +52,5 @@ select
     json_agg(to_json(oi.*)) as order_items
 from orders as o
 inner join order_items as oi on o.id = oi.order_id
+where o.id = any($1::uuid [])
 group by o.id, o.user_id, o.created_at, o.updated_at;

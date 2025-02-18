@@ -215,6 +215,7 @@ select
     json_agg(to_json(oi.*)) as order_items
 from orders as o
 inner join order_items as oi on o.id = oi.order_id
+where o.id = any($1::uuid [])
 group by o.id, o.user_id, o.created_at, o.updated_at
 `
 
@@ -227,8 +228,8 @@ type GetOrdersRow struct {
 	OrderItems []byte             `db:"order_items" json:"order_items"`
 }
 
-func (q *Queries) GetOrders(ctx context.Context) ([]GetOrdersRow, error) {
-	rows, err := q.db.Query(ctx, getOrders)
+func (q *Queries) GetOrders(ctx context.Context, dollar_1 []uuid.UUID) ([]GetOrdersRow, error) {
+	rows, err := q.db.Query(ctx, getOrders, dollar_1)
 	if err != nil {
 		return nil, err
 	}

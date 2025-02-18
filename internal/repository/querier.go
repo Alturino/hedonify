@@ -30,7 +30,7 @@ type Querier interface {
 	FindProductByName(ctx context.Context, name string) (Product, error)
 	FindProducts(ctx context.Context) ([]Product, error)
 	FindProductsByIds(ctx context.Context, dollar_1 []uuid.UUID) ([]Product, error)
-	GetOrders(ctx context.Context) ([]GetOrdersRow, error)
+	GetOrders(ctx context.Context, dollar_1 []uuid.UUID) ([]GetOrdersRow, error)
 	GetProducts(ctx context.Context) ([]Product, error)
 	InsertCart(ctx context.Context, userID uuid.UUID) (Cart, error)
 	InsertCartItem(ctx context.Context, arg InsertCartItemParams) (CartItem, error)
