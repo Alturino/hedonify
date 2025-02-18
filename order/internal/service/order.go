@@ -149,10 +149,17 @@ func (s OrderService) FindOrders(
 }
 
 func (s OrderService) BatchCreateOrder(c context.Context, params []request.CreateOrder) error {
-	traceLinks := make([]trace.Link, 0, len(params))
-	for _, param := range params {
-		traceLinks = append(traceLinks, param.TraceLink)
+	orderCount := len(params)
+	traceLinks := make([]trace.Link, orderCount)
+	var wg sync.WaitGroup
+	for i, param := range params {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			traceLinks[i] = param.TraceLink
+		}()
 	}
+	wg.Wait()
 	c, span := otel.Tracer.Start(c, "OrderService BatchCreateOrder", trace.WithLinks(traceLinks...))
 	defer span.End()
 
