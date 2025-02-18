@@ -115,9 +115,16 @@ func RunCartService(c context.Context) {
 
 	logger = logger.With().Str(log.KEY_PROCESS, "initializing server").Logger()
 	logger.Info().Msg("initializing server")
-	httpServer := http.Server{
-		Addr:         fmt.Sprintf("%s:%d", cfg.Application.Host, cfg.Application.Port),
-		BaseContext:  func(net.Listener) context.Context { return c },
+	server := http.Server{
+		Addr: fmt.Sprintf("%s:%d", cfg.Application.Host, cfg.Application.Port),
+		BaseContext: func(net.Listener) context.Context {
+			lg := logger.With().
+				Reset().
+				Str(log.KEY_APP_NAME, constants.APP_CART_SERVICE).
+				Logger()
+			c = lg.WithContext(c)
+			return c
+		},
 		Handler:      mux,
 		ReadTimeout:  45 * time.Second,
 		WriteTimeout: 45 * time.Second,
@@ -126,10 +133,10 @@ func RunCartService(c context.Context) {
 
 	go func() {
 		logger = logger.With().Str(log.KEY_PROCESS, "start server").Logger()
-		logger.Info().Msgf("start listening request at %s", httpServer.Addr)
+		logger.Info().Msgf("start listening request at %s", server.Addr)
 
 		logger = logger.With().Str(log.KEY_PROCESS, "shutdown server").Logger()
-		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			err = fmt.Errorf("error=%w occured while server is running", err)
 			commonErrors.HandleError(err, span)
 			logger.Error().Err(err).Msg(err.Error())
@@ -153,7 +160,7 @@ func RunCartService(c context.Context) {
 
 	logger = logger.With().Str(log.KEY_PROCESS, "shutting down http server").Logger()
 	logger.Info().Msg("shutting down http server")
-	err = httpServer.Shutdown(c)
+	err = server.Shutdown(c)
 	if err != nil {
 		err = fmt.Errorf("failed shutting down http server with error=%w", err)
 		commonErrors.HandleError(err, span)

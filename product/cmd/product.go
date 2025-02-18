@@ -117,8 +117,15 @@ func RunProductService(c context.Context) {
 	logger = logger.With().Str(log.KEY_PROCESS, "initializing server").Logger()
 	logger.Info().Msg("initializing server")
 	server := http.Server{
-		Addr:         fmt.Sprintf("%s:%d", cfg.Application.Host, cfg.Application.Port),
-		BaseContext:  func(net.Listener) context.Context { return c },
+		Addr: fmt.Sprintf("%s:%d", cfg.Application.Host, cfg.Application.Port),
+		BaseContext: func(net.Listener) context.Context {
+			lg := logger.With().
+				Reset().
+				Str(log.KEY_APP_NAME, constants.APP_PRODUCT_SERVICE).
+				Logger()
+			c = lg.WithContext(c)
+			return c
+		},
 		Handler:      mux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,

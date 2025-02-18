@@ -29,6 +29,7 @@ func (wrk OrderWorker) StartWorker(c context.Context, wg *sync.WaitGroup) {
 
 	logger := zerolog.Ctx(c).
 		With().
+		Reset().
 		Str(log.KEY_TAG, "OrderWorker-StartWorker").
 		Str(log.KEY_PROCESS, "starting-worker").
 		Str(log.KEY_APP_NAME, constants.APP_ORDER_WORKER).
