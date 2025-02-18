@@ -1,5 +1,5 @@
 import http from "k6/http";
-import { check, fail, sleep } from "k6";
+import { check, fail } from "k6";
 import { SharedArray } from "k6/data";
 import { Counter } from "k6/metrics";
 
@@ -9,8 +9,14 @@ const minOrderItems = 1;
 const maxOrderItems = 5;
 
 export const options = {
-  vus: 10,
-  duration: "5s",
+  scenarios: {
+    order_creations: {
+      executor: "per-vu-iterations",
+      vus: 20,
+      iterations: 5,
+      maxDuration: "30s",
+    },
+  },
 };
 
 const users = new SharedArray("users", () => {
