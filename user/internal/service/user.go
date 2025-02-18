@@ -239,11 +239,17 @@ func (svc UserService) FindUserById(
 	c, span := userOtel.Tracer.Start(c, "UserService FindUserById")
 	defer span.End()
 
-	logger := zerolog.Ctx(c).With().Str(log.KEY_TAG, "UserService FindUserById").Logger()
+	cacheKey := fmt.Sprintf(cache.KEY_USER, param.ID.String())
+
+	logger := zerolog.Ctx(c).
+		With().
+		Str(log.KEY_TAG, "UserService FindUserById").
+		Str(log.KEY_CACHE_KEY, cacheKey).
+		Logger()
 
 	logger = logger.With().Str(log.KEY_PROCESS, "finding user by id in cache").Logger()
 	logger.Info().Msg("finding user by id in cache")
-	jsonCache, err := svc.cache.JSONGet(c, fmt.Sprintf(cache.KEY_USER, param.ID.String())).Result()
+	jsonCache, err := svc.cache.JSONGet(c, cacheKey).Result()
 	if (err != nil || errors.Is(err, redis.Nil)) || jsonCache == "" {
 		err = fmt.Errorf("failed finding user by id from cache with error=%w", err)
 		commonErrors.HandleError(err, span)
@@ -260,6 +266,20 @@ func (svc UserService) FindUserById(
 		}
 		logger = logger.With().Any(log.KEY_USER, user).Logger()
 		logger.Info().Msg("found user in database")
+
+		logger.With().Str(log.KEY_PROCESS, "cache user").Logger()
+		logger.Info().Msg("inserting user to cache")
+		span.AddEvent("inserting user to cache")
+		err = svc.cache.JSONSet(c, cacheKey, "$", user).Err()
+		if err != nil {
+			err = fmt.Errorf("failed inserting user to cache with error=%w", err)
+			commonErrors.HandleError(err, span)
+			logger.Error().Err(err).Msg(err.Error())
+			return repository.User{}, err
+		}
+		logger.Info().Msg("inserted user to cache")
+		span.AddEvent("inserted user to cache")
+
 		return user, err
 	}
 	logger = logger.With().RawJSON(log.KEY_JSON_CACHE, []byte(jsonCache)).Logger()
