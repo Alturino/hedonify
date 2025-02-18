@@ -24,9 +24,9 @@ insert into users (id, username, email, password) values
   ('bdf3cd6b-3211-45b2-81b3-f57df17915f2', 'user_23', 'user_23@test.com', '$2a$10$DN9ixGK62srNGfYLHPzAnOtPpSYyQ0rEb0NemjAKdVqQ92QZZ5y9a'),
   ('f50bf5dd-50c7-4864-aca1-6ef8bde22de4', 'user_24', 'user_24@test.com', '$2a$10$zs5G1SSJQULaiiGuEqKSseZ80MOdazehdbAsjOIVL2EjTq2Bw2md2'),
   ('fef2dd68-87cc-44e2-be35-ae457b2facb3', 'user_25', 'user_25@test.com', '$2a$10$8IS3YBC6/VVlnyfr3DyRIOHFEFBqmym7DWZoTmtS7q8yQmnRGqH/C'),
-  ('46130a2a-7c15-454f-a958-e35e82a3a697', 'user_26', 'user_26@test.com', '$2a$10$8IS3YBC6/VVlnyfr3DyRIOHFEFBqmym7DWZoTmtS7q8yQmnRGqH/C'),
+  ('46130a2a-7c15-454f-a958-e35e82a3a697', 'user_26', 'user_26@test.com', '$2y$10$NljNEnz2.2WIsIxuBUzkb.L/4grblm5DjDtdSa3GNwHpP5j.zArCy'),
   ('141590bb-4016-4f8c-961f-3cc3952b4b85', 'user_27', 'user_27@test.com', '$2a$10$Ni2rfYLucNOpkOC73e3Z6.7KGA7j8nxf7A7Nv1WQPoJc13t4wJTZO'),
   ('450f994f-36e1-4c9e-9963-777c3eef28da', 'user_28', 'user_28@test.com', '$2a$10$VGcC8in/KZRcXX7X6UzrCuKgMPIYfiIZNL8NgGfxBSUIltgcQ84FS'),
   ('e4908eab-d28f-49d0-9291-da26fae037cb', 'user_29', 'user_29@test.com', '$2a$10$gzbVXcLS/zCyZO.MmUZfSeFwZEIi/11dTE1ZMDcWnRD3hru09GgyG'),
   ('8084d303-9398-477c-a45c-0185bbd31638', 'user_30', 'user_30@test.com', '$2a$10$ze3Wq9yM/EY3E0UzdBjBEOyuLiLUxRkVZo8ujMJ87JOL6z0kbylIO'),
-  ('b4a8f308-b701-4974-94a7-314661bebbf4', 'user_31', 'user_31@test.com', '$2a$10$2gf7smh23kWrGpjr0xNevOA5pCgW4eIbdZR9KvJMHBG7mt/PLUhXi')
+  ('b4a8f308-b701-4974-94a7-314661bebbf4', 'user_31', 'user_31@test.com', '$2a$10$2gf7smh23kWrGpjr0xNevOA5pCgW4eIbdZR9KvJMHBG7mt/PLUhXi') returning *;

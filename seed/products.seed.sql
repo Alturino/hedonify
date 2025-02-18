@@ -29,4 +29,4 @@ insert into products (id, name, price, quantity) values
   ('6f91570c-6e3a-49a3-ba42-16afdf4f27e5', 'product 28', '100', 1000),
   ('6dd42e75-a11c-4a2c-8335-786d6098fba3', 'product 29', '100', 1000),
   ('27b05fb3-294f-459e-b63d-443a3223e785', 'product 30', '100', 1000),
-  ('37ab4567-1ea9-404d-b682-5fe069c6deb2', 'product 31', '100', 1000)
+  ('37ab4567-1ea9-404d-b682-5fe069c6deb2', 'product 31', '100', 1000) returning *;
