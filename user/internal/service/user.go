@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/Alturino/ecommerce/internal/common/constants"
@@ -57,8 +59,8 @@ func (u UserService) Login(
 	logger = logger.With().Str(log.KEY_PROCESS, "getting token from cache").Logger()
 	logger.Info().Msg("getting token from cache")
 	span.AddEvent("getting token from cache")
-	signedToken, err := u.cache.Get(c, cacheKey).Result()
-	if err != nil {
+	signedToken, err := u.cache.JSONGet(c, cacheKey).Result()
+	if (err != nil || errors.Is(err, redis.Nil)) || signedToken == "" {
 		err = fmt.Errorf("failed getting token from cache with error=%w", err)
 		logger.Info().Err(err).Msg(err.Error())
 		span.AddEvent("failed getting token from cache")
@@ -121,6 +123,7 @@ func (u UserService) Login(
 			logger.Error().Err(err).Msg(err.Error())
 			return "", err
 		}
+		logger = logger.With().Str(log.KEY_TOKEN, signedToken).Logger()
 		span.AddEvent("signed token")
 		logger.Info().Msg("signed token")
 
@@ -137,6 +140,11 @@ func (u UserService) Login(
 		logger.Info().Msg("inserted token to cache")
 		span.AddEvent("inserted token to cache")
 	}
+	logger.Info().RawJSON(log.KEY_JSON_CACHE, []byte(signedToken)).Msg("got token from cache")
+	span.AddEvent(
+		"got token from cache",
+		trace.WithAttributes(attribute.String(log.KEY_JSON_CACHE, signedToken)),
+	)
 
 	return signedToken, nil
 }
@@ -183,6 +191,7 @@ func (svc UserService) Register(
 
 	logger = logger.With().Str(log.KEY_PROCESS, "inserting user to database").Logger()
 	logger.Info().Msg("inserting user to database")
+	span.AddEvent("inserting user to database")
 	user, err := svc.queries.InsertUser(c, repository.InsertUserParams{
 		Username: param.Username,
 		Email:    param.Email,
@@ -205,8 +214,10 @@ func (svc UserService) Register(
 		return repository.User{}, err
 	}
 	logger.Info().Msg("inserted user to database")
+	span.AddEvent("inserted user to database")
 
 	logger = logger.With().Str(log.KEY_PROCESS, "inserting user to cache").Logger()
+	span.AddEvent("inserting user to cache")
 	logger.Info().Msg("inserting user to cache")
 	err = svc.cache.JSONSet(c, fmt.Sprintf(cache.KEY_USER, user.ID.String()), "$", user).Err()
 	if err != nil {
@@ -216,6 +227,7 @@ func (svc UserService) Register(
 		return user, nil
 	}
 	logger.Info().Msg("inserted user to cache")
+	span.AddEvent("inserted user to cache")
 
 	return user, nil
 }
@@ -232,7 +244,7 @@ func (svc UserService) FindUserById(
 	logger = logger.With().Str(log.KEY_PROCESS, "finding user by id in cache").Logger()
 	logger.Info().Msg("finding user by id in cache")
 	jsonCache, err := svc.cache.JSONGet(c, fmt.Sprintf(cache.KEY_USER, param.ID.String())).Result()
-	if err != nil {
+	if (err != nil || errors.Is(err, redis.Nil)) || jsonCache == "" {
 		err = fmt.Errorf("failed finding user by id from cache with error=%w", err)
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
@@ -241,18 +253,13 @@ func (svc UserService) FindUserById(
 		logger.Info().Msg("finding user by id in database")
 		user, err = svc.queries.FindById(c, param.ID)
 		if err != nil {
-			err = fmt.Errorf(
-				"failed finding user by id=%s from database with error=%w",
-				param.ID.String(),
-				err,
-			)
+			err = fmt.Errorf("failed finding user from database with error=%w", err)
 			commonErrors.HandleError(err, span)
 			logger.Error().Err(err).Msg(err.Error())
 			return repository.User{}, err
 		}
 		logger = logger.With().Any(log.KEY_USER, user).Logger()
-		logger.Info().Msg("found user by id in database")
-
+		logger.Info().Msg("found user in database")
 		return user, err
 	}
 	logger = logger.With().RawJSON(log.KEY_JSON_CACHE, []byte(jsonCache)).Logger()
