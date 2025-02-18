@@ -3,6 +3,7 @@ package log
 const (
 	KEY_APP_NAME                   = "app"
 	KEY_ARGUMENTS                  = "arguments"
+	KEY_BATCH_ORDER_COUNT          = "batch_order_count"
 	KEY_AUTH                       = "auth"
 	KEY_CACHE_EXECUTED_COMMANDS    = "cache_executed_commands"
 	KEY_CACHE_KEY                  = "cache_key"

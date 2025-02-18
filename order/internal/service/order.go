@@ -159,10 +159,12 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	logger := zerolog.Ctx(c).
 		With().
 		Str(log.KEY_TAG, "OrderService BatchCreateOrder").
+		Int(log.KEY_BATCH_ORDER_COUNT, orderCount).
 		Any(log.KEY_ORDERS, params).
 		Logger()
 
 	logger = logger.With().Str(log.KEY_PROCESS, "merge-order-item").Logger()
+	logger.Info().Msg("merging order items quantity")
 	span.AddEvent("merging order items quantity")
 	type mergedOrderItem struct {
 		Items               []request.OrderItem `json:"items"`
@@ -171,8 +173,10 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	mapMergedOrderItem := map[string]mergedOrderItem{}
 	mapOrder := map[string]request.CreateOrder{}
 	productIds := []uuid.UUID{}
-	for _, order := range params {
+	orderIds := make([]uuid.UUID, orderCount)
+	for i, order := range params {
 		orderId := order.ID.String()
+		orderIds[i] = order.ID
 		_, ok := mapOrder[orderId]
 		if !ok {
 			mapOrder[orderId] = order
@@ -202,6 +206,8 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	span.AddEvent("merged order items quantity")
 
 	logger = logger.With().Str(log.KEY_PROCESS, "initializing-transaction").Logger()
+	logger.Info().Msg("initializing transaction")
+	span.AddEvent("initializing transaction")
 	tx, err := s.pool.BeginTx(c, pgx.TxOptions{})
 	if err != nil {
 		err = fmt.Errorf("failed initializing transaction with error=%w", err)
@@ -231,7 +237,8 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	span.AddEvent("initialized transaction")
 
 	logger = logger.With().Str(log.KEY_PROCESS, "check-quantity").Logger()
-	span.AddEvent("get products")
+	logger.Info().Msg("get product quantity")
+	span.AddEvent("get product quantity")
 	products, err := s.queries.WithTx(tx).FindProductsByIds(c, productIds)
 	if err != nil {
 		err = fmt.Errorf("failed get products with error=%w", err)
@@ -241,10 +248,11 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 		return err
 	}
 	logger = logger.With().Any(log.KEY_PRODUCTS, products).Logger()
-	logger.Info().Msg("got products")
-	span.AddEvent("got products")
+	logger.Info().Msg("got product quantity")
+	span.AddEvent("got product quantity")
 
 	span.AddEvent("check and decrease product quantity")
+	logger.Info().Msg("check and decrease product quantity")
 	for _, product := range products {
 		productId := product.ID.String()
 		merged := mapMergedOrderItem[productId]
@@ -382,7 +390,10 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	logger.Info().Msg("inserted order items")
 	span.AddEvent("inserted order items")
 
-	orders, err := s.queries.WithTx(tx).GetOrders(c)
+	logger = logger.With().Str(log.KEY_PROCESS, "get orders").Logger()
+	logger.Info().Msg("getting orders")
+	span.AddEvent("getting orders")
+	orders, err := s.queries.WithTx(tx).GetOrders(c, orderIds)
 	if err != nil {
 		err = fmt.Errorf("failed getting orders with error=%w", err)
 		commonErrors.HandleError(err, span)
@@ -390,6 +401,12 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 		returnOrderError(c, params, err)
 		return err
 	}
+	logger.Info().Msg("got orders")
+	span.AddEvent("got orders")
+
+	logger = logger.With().Str(log.KEY_PROCESS, "preparing order response").Logger()
+	logger.Info().Msg("preparing order response")
+	span.AddEvent("preparing order response")
 	mapResponseOrder := map[string]response.Order{}
 	for _, order := range orders {
 		orderId := order.ID.String()
@@ -407,6 +424,8 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 		}
 		mapResponseOrder[orderId] = orderResponse
 	}
+	logger.Info().Msg("prepared order response")
+	span.AddEvent("prepared order response")
 
 	logger = logger.With().Str(log.KEY_PROCESS, "commit-transaction").Logger()
 	span.AddEvent("committing transaction")
@@ -429,7 +448,9 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	logger.Info().Msg("committed transaction")
 	span.AddEvent("committed transaction")
 
-	var wg sync.WaitGroup
+	logger = logger.With().Str(log.KEY_PROCESS, "sending result").Logger()
+	logger.Info().Msg("sending result to the orders")
+	span.AddEvent("sending result to the orders")
 	for _, param := range params {
 		wg.Add(1)
 		go func() {
@@ -444,6 +465,9 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 		}()
 	}
 	wg.Wait()
+	logger.Info().Msg("sent result to each order")
+	span.AddEvent("sent result to each order")
+
 	return nil
 }
 
