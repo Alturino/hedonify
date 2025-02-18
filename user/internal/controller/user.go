@@ -45,13 +45,12 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 
 	logger = logger.With().Str(log.KEY_PROCESS, "decoding requestbody").Logger()
 	logger.Info().Msg("decoding request body")
+	span.AddEvent("decoding request body")
 	reqBody := request.LoginRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%s", err.Error())
-
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -60,14 +59,17 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger.Info().Msg("decoded request body")
+	span.AddEvent("decoded request body")
 
 	logger = logger.With().Str(log.KEY_PROCESS, "validating.request_body").Logger()
-
 	logger.Info().Msg("initializing validator")
+	span.AddEvent("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
 	logger.Info().Msg("initialized validator")
+	span.AddEvent("initialized validator")
 
 	logger.Info().Msg("validating request body")
+	span.AddEvent("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%s", err.Error())
 		commonErrors.HandleError(err, span)
@@ -80,17 +82,17 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger.Info().Msg("validated request body")
+	span.AddEvent("validated request body")
 
 	logger = logger.With().Str(log.KEY_PROCESS, "login").Logger()
-	logger.Info().Msg("login")
+	logger.Info().Msg("trying to login")
+	span.AddEvent("trying to login")
 	token, err := u.service.Login(c, reqBody)
-	if err != nil && errors.Is(err, userErrors.ErrUserNotFound) {
+	if (err != nil && errors.Is(err, userErrors.ErrUserNotFound)) || token == "" {
 		err = errors.Join(err, userErrors.ErrUserNotFound)
 		err = fmt.Errorf("failed login with error=%w", err)
-
 		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-
 		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
@@ -99,6 +101,7 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger.Info().Msg("login success")
+	span.AddEvent("login success")
 
 	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
