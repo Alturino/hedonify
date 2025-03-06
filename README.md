@@ -275,6 +275,9 @@ To ensure observability, we utilize both logging and tracing mechanisms. Logs ar
 ```bash
 cd k6
 npm run build
+docker compose up --build -d
+# wait for all containers to be running
+cat seed/*.seed.sql | docker exec -i ${POSTGRES_CONTAINER} psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -f- # seed database
 k6 run ./dist/src/orderCreation.js -v
 ```
 

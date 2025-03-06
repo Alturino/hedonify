@@ -48,6 +48,7 @@ const (
 	KEY_PRODUCT_QUANTITY_DECREASED = "product_quantity_decreased"
 	KEY_PRODUCT_QUANTITY_INCREASED = "product_quantity_increased"
 	KEY_PRODUCT_UPDATED_LIST       = "product_updated_list"
+	KEY_PRODUCT_UPDATED            = "product_updated"
 	KEY_RABBIT_MQ_CONNECTION_URL   = "rabbitmq_connection_url"
 	KEY_REQUEST                    = "request"
 	KEY_REQUEST_BODY               = "body"

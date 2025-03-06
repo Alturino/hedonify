@@ -43,7 +43,9 @@ func InitLogger(filepath string) *zerolog.Logger {
 			Compress:   true,
 		}
 		var logOutput io.Writer = os.Stdout
+		logLevel := zerolog.InfoLevel
 		if os.Getenv("env") == "dev" {
+			logLevel = zerolog.TraceLevel
 			logOutput = zerolog.ConsoleWriter{
 				Out:          os.Stdout,
 				TimeFormat:   time.RFC3339Nano,
@@ -54,7 +56,7 @@ func InitLogger(filepath string) *zerolog.Logger {
 		output := zerolog.MultiLevelWriter(logOutput, fileWriter)
 
 		log := zerolog.New(output).
-			Level(zerolog.TraceLevel).
+			Level(logLevel).
 			With().
 			Timestamp().
 			Caller().

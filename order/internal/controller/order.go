@@ -37,7 +37,8 @@ func AttachOrderController(
 	router := mux.PathPrefix("/orders").Subrouter()
 	router.HandleFunc("", controller.FindOrders).Methods(http.MethodGet)
 	router.HandleFunc("/{orderId}", controller.FindOrderById).Methods(http.MethodGet)
-	router.HandleFunc("/checkout", controller.CreateOrder).Methods(http.MethodPost)
+	router.HandleFunc("/checkout", controller.BatchCreateOrder).Methods(http.MethodPost)
+	// router.HandleFunc("/checkout", controller.CreateOrderOptimisticLock).Methods(http.MethodPost)
 }
 
 func (ctrl OrderController) FindOrderById(w http.ResponseWriter, r *http.Request) {
@@ -163,13 +164,13 @@ func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (ctrl OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) {
-	c, span := otel.Tracer.Start(r.Context(), "OrderController CreateOrder")
+func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Request) {
+	c, span := otel.Tracer.Start(r.Context(), "OrderController BatchCreateOrder")
 	defer span.End()
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "OrderController-CreateOrder").
+		Str(log.KEY_TAG, "OrderController BatchCreateOrder").
 		Logger()
 
 	logger = logger.With().Str(log.KEY_PROCESS, "getting userId from jwtToken").Logger()

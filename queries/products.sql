@@ -8,6 +8,10 @@ insert into products (name, price, quantity) values ($1, $2, $3) returning *;
 select * from products
 where id = $1;
 
+-- name: FindProductByIdLock :one
+select * from products
+where id = $1 for update skip locked;
+
 -- name: FindProducts :many
 select * from products;
 
@@ -30,3 +34,7 @@ where id = $1 returning *;
 -- name: FindProductsByIds :many
 select * from products
 where id = any($1::uuid []);
+
+-- name: FindProductsByIdsLock :many
+select * from products
+where id = any($1::uuid []) for share;

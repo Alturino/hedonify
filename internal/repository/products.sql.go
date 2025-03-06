@@ -50,6 +50,25 @@ func (q *Queries) FindProductById(ctx context.Context, id uuid.UUID) (Product, e
 	return i, err
 }
 
+const findProductByIdLock = `-- name: FindProductByIdLock :one
+select id, name, price, quantity, created_at, updated_at from products
+where id = $1 for share
+`
+
+func (q *Queries) FindProductByIdLock(ctx context.Context, id uuid.UUID) (Product, error) {
+	row := q.db.QueryRow(ctx, findProductByIdLock, id)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Price,
+		&i.Quantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const findProductByName = `-- name: FindProductByName :one
 select id, name, price, quantity, created_at, updated_at from products
 where name = $1
@@ -107,6 +126,38 @@ where id = any($1::uuid [])
 
 func (q *Queries) FindProductsByIds(ctx context.Context, dollar_1 []uuid.UUID) ([]Product, error) {
 	rows, err := q.db.Query(ctx, findProductsByIds, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Product
+	for rows.Next() {
+		var i Product
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Price,
+			&i.Quantity,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findProductsByIdsLock = `-- name: FindProductsByIdsLock :many
+select id, name, price, quantity, created_at, updated_at from products
+where id = any($1::uuid []) for share
+`
+
+func (q *Queries) FindProductsByIdsLock(ctx context.Context, dollar_1 []uuid.UUID) ([]Product, error) {
+	rows, err := q.db.Query(ctx, findProductsByIdsLock, dollar_1)
 	if err != nil {
 		return nil, err
 	}

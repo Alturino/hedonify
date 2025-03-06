@@ -6,25 +6,25 @@ import { Counter } from "k6/metrics";
 const minQuantity = 1;
 const maxQuantity = 10;
 const minOrderItems = 1;
-const maxOrderItems = 5;
+const maxOrderItems = 10;
 
 export const options = {
   scenarios: {
     order_creations: {
       executor: "per-vu-iterations",
-      vus: 20,
-      iterations: 5,
+      vus: 25,
+      iterations: 20,
       maxDuration: "30s",
     },
   },
 };
 
 const users = new SharedArray("users", () => {
-  return JSON.parse(open("./users.json"));
+  return JSON.parse(open("../../seed/users.seed.json"));
 });
 
 const products = new SharedArray("products", () => {
-  return JSON.parse(open("./products.json"));
+  return JSON.parse(open("../../seed/products.seed.json"));
 });
 
 const counterOrderSuccess = new Counter("order_success");
