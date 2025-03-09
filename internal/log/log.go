@@ -9,6 +9,10 @@ import (
 
 	"github.com/natefinch/lumberjack"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/pkgerrors"
+
+	"github.com/Alturino/ecommerce/internal/config"
+	"github.com/Alturino/ecommerce/internal/constants"
 )
 
 type requestId struct{}
@@ -23,39 +27,38 @@ func AttachRequestIDToContext(c context.Context, h string) context.Context {
 
 var (
 	once   sync.Once
-	logger *zerolog.Logger
+	logger zerolog.Logger
 )
 
-func InitLogger(filepath string) *zerolog.Logger {
+func Get(filepath string, config config.Application) zerolog.Logger {
 	once.Do(func() {
 		zerolog.DurationFieldUnit = time.Microsecond
 		zerolog.ErrorFieldName = "error"
 		zerolog.ErrorStackFieldName = "stack-trace"
+		zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 		zerolog.LevelFieldName = "level"
 		zerolog.MessageFieldName = "message"
 		zerolog.TimestampFieldName = "timestamp"
 
-		fileWriter := &lumberjack.Logger{
-			Filename:   filepath,
-			MaxSize:    10,
-			MaxBackups: 10,
-			MaxAge:     10,
-			Compress:   true,
-		}
-		var logOutput io.Writer = os.Stdout
 		logLevel := zerolog.InfoLevel
-		if os.Getenv("env") == "dev" {
+		var writer io.Writer = os.Stdout
+		if config.Env == "development" {
 			logLevel = zerolog.TraceLevel
-			logOutput = zerolog.ConsoleWriter{
+			writer = zerolog.ConsoleWriter{
 				Out:          os.Stdout,
 				TimeFormat:   time.RFC3339Nano,
 				NoColor:      false,
 				TimeLocation: time.UTC,
 			}
 		}
-		output := zerolog.MultiLevelWriter(logOutput, fileWriter)
 
-		log := zerolog.New(output).
+		fileWriter := &lumberjack.Logger{
+			Filename: filepath,
+			Compress: true,
+		}
+		output := zerolog.MultiLevelWriter(writer, fileWriter)
+
+		logger := zerolog.New(output).
 			Level(logLevel).
 			With().
 			Timestamp().
@@ -66,11 +69,9 @@ func InitLogger(filepath string) *zerolog.Logger {
 			Int("uid", os.Getuid()).
 			Logger()
 
-		logger = &log
-
 		logger.Info().
-			Str(KEY_TAG, "InitLogger").
-			Str(KEY_PROCESS, "InitLogger").
+			Str(constants.KEY_TAG, "InitLogger").
+			Str(constants.KEY_PROCESS, "InitLogger").
 			Msg("finish initiating logging")
 	})
 	return logger

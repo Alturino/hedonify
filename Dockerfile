@@ -6,8 +6,6 @@ LABEL authors="alturino"
 WORKDIR /usr/app/ecommerce/
 
 COPY ["go.mod", "go.sum", "./"]
-RUN go mod download
-
 COPY main.go  ./
 COPY ./internal/ ./internal/
 COPY ./cmd/ ./cmd/
@@ -17,6 +15,7 @@ COPY ./notification/ ./notification/
 COPY ./order/ ./order/
 COPY ./product/ ./product/
 COPY ./user/ ./user/
+COPY ./vendor/ ./vendor/
 
 RUN go build main.go
 

@@ -5,16 +5,17 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/rs/zerolog"
+	zl "github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 
-	"github.com/Alturino/ecommerce/internal/log"
+	"github.com/Alturino/ecommerce/internal/constants"
 )
 
 type Application struct {
-	Host      string `mapstructure:"host"      json:"host"`
-	SecretKey string `mapstructure:"secretkey" json:"secret_key"`
-	Port      int    `mapstructure:"port"      json:"port"`
+	Env       string `mapstructure:"env"        json:"env"`
+	Host      string `mapstructure:"host"       json:"host"`
+	SecretKey string `mapstructure:"secret_key" json:"secret_key"`
+	Port      int    `mapstructure:"port"       json:"port"`
 }
 
 type Database struct {
@@ -42,35 +43,33 @@ type Otel struct {
 }
 
 type Config struct {
-	Env         string `mapstructure:"env"         json:"env"`
-	Database    `       mapstructure:"db"          json:"db"`
-	Cache       `       mapstructure:"cache"       json:"cache"`
-	Application `       mapstructure:"application" json:"application"`
-	Otel        `       mapstructure:"otel"        json:"otel"`
+	Database    `mapstructure:"db"          json:"db"`
+	Cache       `mapstructure:"cache"       json:"cache"`
+	Application `mapstructure:"application" json:"application"`
+	Otel        `mapstructure:"otel"        json:"otel"`
 }
 
 var (
 	once   sync.Once
-	config *Config
+	config Config
 )
 
-func InitConfig(c context.Context, filename string) *Config {
-	cfg := Config{}
+func Get(c context.Context, filename string) Config {
 	once.Do(func() {
-		logger := zerolog.Ctx(c).
+		logger := zl.Logger.
 			With().
-			Str(log.KEY_TAG, "main InitConfig").
-			Str(log.KEY_PROCESS, "init config").
+			Str(constants.KEY_TAG, "main InitConfig").
+			Str(constants.KEY_PROCESS, "init config").
 			Str("filename", filename).
 			Logger()
 
 		viper.SetConfigName(filename)
-		viper.AddConfigPath("./env")
+		viper.AddConfigPath("./env/")
 		viper.SetConfigType("yaml")
 		viper.AutomaticEnv()
 
-		logger = logger.With().Str(log.KEY_PROCESS, "reading config").Logger()
-		logger.Info().Msg("reading config")
+		logger = logger.With().Str(constants.KEY_PROCESS, "reading config").Logger()
+		logger.Trace().Msg("reading config")
 		err := viper.ReadInConfig()
 		if err != nil {
 			err = fmt.Errorf("error when reading config with error=%w", err)
@@ -78,16 +77,14 @@ func InitConfig(c context.Context, filename string) *Config {
 		}
 		logger.Info().Msg("read config")
 
-		logger = logger.With().Str(log.KEY_PROCESS, "unmarshaling config").Logger()
-		logger.Info().Msg("unmarshaling config")
-		err = viper.Unmarshal(&cfg)
+		logger = logger.With().Str(constants.KEY_PROCESS, "unmarshaling config").Logger()
+		logger.Trace().Msg("unmarshaling config")
+		err = viper.Unmarshal(&config)
 		if err != nil {
 			err = fmt.Errorf("error unmarshaling config with error=%w", err)
 			logger.Fatal().Err(err).Msg(err.Error())
 		}
-		config = &cfg
-		logger = logger.With().Any(log.KEY_CONFIG, cfg).Logger()
-		logger.Info().Msg("marshalled config")
+		logger.Info().Any(constants.KEY_CONFIG, config).Msg("marshalled config")
 	})
 	return config
 }

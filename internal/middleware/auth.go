@@ -7,11 +7,11 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/Alturino/ecommerce/internal/common"
-	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
-	commonHttp "github.com/Alturino/ecommerce/internal/common/http"
-	"github.com/Alturino/ecommerce/internal/common/otel"
-	"github.com/Alturino/ecommerce/internal/log"
+	"github.com/Alturino/ecommerce/internal"
+	"github.com/Alturino/ecommerce/internal/constants"
+	commonHttp "github.com/Alturino/ecommerce/internal/http"
+	"github.com/Alturino/ecommerce/internal/otel"
+	commonErrors "github.com/Alturino/ecommerce/internal/otel"
 )
 
 func Auth(next http.Handler) http.Handler {
@@ -23,7 +23,7 @@ func Auth(next http.Handler) http.Handler {
 
 		logger := zerolog.Ctx(c).
 			With().
-			Str(log.KEY_TAG, "middleware Auth").
+			Str(constants.KEY_TAG, "middleware Auth").
 			Logger()
 
 		if authorization == "" {
@@ -31,7 +31,7 @@ func Auth(next http.Handler) http.Handler {
 				"failed checking authorization header with error=%w",
 				commonErrors.ErrEmptyAuth,
 			)
-			commonErrors.HandleError(err, span)
+			otel.RecordError(err, span)
 			logger.Error().Err(err).Msg(err.Error())
 			commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 				"status":     "failed",
@@ -42,14 +42,14 @@ func Auth(next http.Handler) http.Handler {
 		}
 		logger.Info().Msg("authorization header checked")
 
-		logger = logger.With().Str(log.KEY_PROCESS, "verifying token").Logger()
+		logger = logger.With().Str(constants.KEY_PROCESS, "verifying token").Logger()
 		logger.Info().Msg("verifying token")
 		token := strings.Split(authorization, " ")[1]
 		c = logger.WithContext(c)
-		jwt, err := common.VerifyToken(c, token)
+		jwt, err := internal.VerifyToken(c, token)
 		if err != nil {
 			err = fmt.Errorf("failed verifying token with error=%w", err)
-			commonErrors.HandleError(err, span)
+			otel.RecordError(err, span)
 			logger.Error().Err(err).Msg(err.Error())
 			commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 				"status":     "failed",
@@ -60,9 +60,9 @@ func Auth(next http.Handler) http.Handler {
 		}
 		logger.Info().Msg("verified token")
 
-		logger = logger.With().Str(log.KEY_PROCESS, "attaching jwt token to context").Logger()
+		logger = logger.With().Str(constants.KEY_PROCESS, "attaching jwt token to context").Logger()
 		logger.Info().Msg("attaching jwt token to context")
-		c = common.AttachJwtToken(c, jwt)
+		c = internal.AttachJwtToken(c, jwt)
 		c = logger.WithContext(c)
 		r = r.WithContext(c)
 		logger.Info().Msg("attached jwt token to context")
