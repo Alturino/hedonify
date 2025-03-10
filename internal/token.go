@@ -10,6 +10,7 @@ import (
 
 	"github.com/Alturino/ecommerce/internal/config"
 	"github.com/Alturino/ecommerce/internal/constants"
+	"github.com/Alturino/ecommerce/internal/errors"
 	"github.com/Alturino/ecommerce/internal/otel"
 )
 
@@ -53,10 +54,10 @@ func VerifyToken(c context.Context, token string) (*jwt.Token, error) {
 	logger = logger.With().Str(constants.KEY_PROCESS, "validating token").Logger()
 	logger.Info().Msg("validating token")
 	if !jwtToken.Valid {
-		err = fmt.Errorf("failed validating token with error=%w", otel.ErrTokenInvalid)
+		err = fmt.Errorf("failed validating token with error=%w", errors.ErrTokenInvalid)
 		otel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		return nil, otel.ErrTokenInvalid
+		return nil, errors.ErrTokenInvalid
 	}
 	logger.Info().Msg("validated token")
 

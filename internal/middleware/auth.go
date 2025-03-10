@@ -9,9 +9,9 @@ import (
 
 	"github.com/Alturino/ecommerce/internal"
 	"github.com/Alturino/ecommerce/internal/constants"
+	"github.com/Alturino/ecommerce/internal/errors"
 	commonHttp "github.com/Alturino/ecommerce/internal/http"
 	"github.com/Alturino/ecommerce/internal/otel"
-	commonErrors "github.com/Alturino/ecommerce/internal/otel"
 )
 
 func Auth(next http.Handler) http.Handler {
@@ -29,14 +29,14 @@ func Auth(next http.Handler) http.Handler {
 		if authorization == "" {
 			err := fmt.Errorf(
 				"failed checking authorization header with error=%w",
-				commonErrors.ErrEmptyAuth,
+				errors.ErrEmptyAuth,
 			)
 			otel.RecordError(err, span)
 			logger.Error().Err(err).Msg(err.Error())
 			commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 				"status":     "failed",
 				"statusCode": http.StatusUnauthorized,
-				"message":    commonErrors.ErrEmptyAuth.Error(),
+				"message":    errors.ErrEmptyAuth.Error(),
 			})
 			return
 		}
@@ -54,7 +54,7 @@ func Auth(next http.Handler) http.Handler {
 			commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 				"status":     "failed",
 				"statusCode": http.StatusUnauthorized,
-				"message":    commonErrors.ErrTokenInvalid.Error(),
+				"message":    errors.ErrTokenInvalid.Error(),
 			})
 			return
 		}

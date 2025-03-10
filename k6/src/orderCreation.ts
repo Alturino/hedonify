@@ -1,7 +1,6 @@
 import http from "k6/http";
-import sql from "k6/x/sql";
-import driver from "k6/x/sql/driver/postgres";
 import { check, fail, randomSeed } from "k6";
+import { Options } from "k6/options";
 import { SharedArray } from "k6/data";
 import { Counter } from "k6/metrics";
 
@@ -10,7 +9,7 @@ const maxQuantity = 10;
 const minOrderItems = 1;
 const maxOrderItems = 10;
 
-export const options = {
+export const options: Options = {
   scenarios: {
     order_creations: {
       executor: "per-vu-iterations",
@@ -22,11 +21,11 @@ export const options = {
 };
 
 const users = new SharedArray("users", () => {
-  return JSON.parse(open("../../seed/users.seed.json"));
+  return JSON.parse(open("../seed/users.seed.json"));
 });
 
 const products = new SharedArray("products", () => {
-  return JSON.parse(open("../../seed/products.seed.json"));
+  return JSON.parse(open("../seed/products.seed.json"));
 });
 
 const counterOrderSuccess = new Counter("order_success");
@@ -34,6 +33,7 @@ const counterOrderFail = new Counter("order_fail");
 
 export default function () {
   randomSeed(999_999_999);
+
   // randomize user
   const userRandomIndex = Math.floor(Math.random() * users.length);
   const user = users[userRandomIndex];

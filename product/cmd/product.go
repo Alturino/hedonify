@@ -105,7 +105,10 @@ func RunProductService(c context.Context) {
 	logger.Info().Msg("initializing router")
 	mux := mux.NewRouter()
 	mux.StrictSlash(true)
-	mux.Use(otelmux.Middleware(constants.APP_PRODUCT_SERVICE), middleware.Logging)
+	mux.Use(
+		otelmux.Middleware(constants.APP_PRODUCT_SERVICE),
+		middleware.Logging,
+	)
 	logger.Info().Msg("initialized router")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "attach product controller").Logger()

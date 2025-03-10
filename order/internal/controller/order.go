@@ -13,9 +13,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Alturino/ecommerce/internal"
-	inHttp "github.com/Alturino/ecommerce/internal/http"
 	"github.com/Alturino/ecommerce/internal/constants"
-	"github.com/Alturino/ecommerce/internal/otel"
+	inHttp "github.com/Alturino/ecommerce/internal/http"
+	inOtel "github.com/Alturino/ecommerce/internal/otel"
+	"github.com/Alturino/ecommerce/order/internal/otel"
 	"github.com/Alturino/ecommerce/order/internal/response"
 	"github.com/Alturino/ecommerce/order/internal/service"
 	"github.com/Alturino/ecommerce/order/pkg/request"
@@ -55,7 +56,7 @@ func (ctrl OrderController) FindOrderById(w http.ResponseWriter, r *http.Request
 	orderId, err := uuid.Parse(pathValues["orderId"])
 	if err != nil {
 		err = fmt.Errorf("failed validating orderId=%s with error=%w", orderId.String(), err)
-		otel.RecordError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return
 	}
@@ -66,7 +67,7 @@ func (ctrl OrderController) FindOrderById(w http.ResponseWriter, r *http.Request
 	c = logger.WithContext(c)
 	orders, err := ctrl.service.FindOrderById(c, request.FindOrderById{OrderId: orderId})
 	if err != nil {
-		otel.RecordError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
@@ -103,7 +104,7 @@ func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	userId, err := uuid.Parse(r.URL.Query().Get("userId"))
 	if err != nil {
 		err = fmt.Errorf("failed validating userId=%s with error=%w", userId.String(), err)
-		otel.RecordError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
@@ -118,7 +119,7 @@ func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	orderId, err := uuid.Parse(r.URL.Query().Get("orderId"))
 	if err != nil {
 		err = fmt.Errorf("failed validating orderId=%s with error=%w", orderId.String(), err)
-		otel.RecordError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
@@ -142,7 +143,7 @@ func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		err = fmt.Errorf("failed finding orders with error=%w", err)
-		otel.RecordError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
@@ -177,7 +178,7 @@ func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Requ
 	userId, err := internal.UserIdFromJwtToken(c)
 	if err != nil {
 		err = fmt.Errorf("failed getting userId from jwtToken with error=%w", err)
-		otel.RecordError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
@@ -195,7 +196,7 @@ func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Requ
 	err = json.NewDecoder(r.Body).Decode(&param)
 	if err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
-		otel.RecordError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
@@ -221,7 +222,7 @@ func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Requ
 	err = validate.StructCtx(c, param)
 	if err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
-		otel.RecordError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
@@ -239,7 +240,7 @@ func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Requ
 	select {
 	case <-c.Done():
 		err = fmt.Errorf("failed creating order with error=%w", c.Err())
-		otel.RecordError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
@@ -253,7 +254,7 @@ func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Requ
 	select {
 	case <-c.Done():
 		err = fmt.Errorf("failed creating order with error=%w", c.Err())
-		otel.RecordError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
@@ -264,7 +265,7 @@ func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Requ
 	case result := <-param.ResultChannel:
 		if result.Err != nil {
 			err = fmt.Errorf("failed creating order with error=%w", result.Err)
-			otel.RecordError(err, span)
+			inOtel.RecordError(err, span)
 			logger.Error().Err(err).Msg(err.Error())
 			inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 				"status":     "failed",

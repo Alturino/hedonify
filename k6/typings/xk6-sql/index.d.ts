@@ -78,7 +78,7 @@ export as namespace sql;
  * ```
  */
 export function open(
-  dirverID: Symbol,
+  driverId: Symbol,
   dataSourceName: String,
   options?: Options,
 ): Database;

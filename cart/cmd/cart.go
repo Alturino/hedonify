@@ -39,7 +39,11 @@ func RunCartService(c context.Context) {
 	logger = logger.With().Str(constants.KEY_PROCESS, "initializing router").Logger()
 	logger.Info().Msg("initializing router")
 	mux := mux.NewRouter()
-	mux.Use(otelmux.Middleware(constants.APP_CART_SERVICE), middleware.Logging, middleware.Auth)
+	mux.Use(
+		otelmux.Middleware(constants.APP_CART_SERVICE),
+		middleware.Logging,
+		middleware.Auth,
+	)
 	logger.Info().Msg("initialized router")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "initializing otel sdk").Logger()

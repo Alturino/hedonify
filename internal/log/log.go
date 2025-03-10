@@ -2,7 +2,6 @@ package log
 
 import (
 	"context"
-	"io"
 	"os"
 	"sync"
 	"time"
@@ -41,24 +40,17 @@ func Get(filepath string, config config.Application) zerolog.Logger {
 		zerolog.TimestampFieldName = "timestamp"
 
 		logLevel := zerolog.InfoLevel
-		var writer io.Writer = os.Stdout
 		if config.Env == "development" {
 			logLevel = zerolog.TraceLevel
-			writer = zerolog.ConsoleWriter{
-				Out:          os.Stdout,
-				TimeFormat:   time.RFC3339Nano,
-				NoColor:      false,
-				TimeLocation: time.UTC,
-			}
 		}
 
 		fileWriter := &lumberjack.Logger{
 			Filename: filepath,
 			Compress: true,
 		}
-		output := zerolog.MultiLevelWriter(writer, fileWriter)
+		output := zerolog.MultiLevelWriter(os.Stdout, fileWriter)
 
-		logger := zerolog.New(output).
+		logger = zerolog.New(output).
 			Level(logLevel).
 			With().
 			Timestamp().

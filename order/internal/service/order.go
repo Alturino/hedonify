@@ -157,14 +157,15 @@ type mergedOrderItem struct {
 func (s OrderService) BatchCreateOrder(c context.Context, params []request.CreateOrder) error {
 	traceLinks := createTraceLink(params)
 
+	orderCount := len(params)
 	c, span := inOtel.Tracer.Start(
 		c,
 		"OrderService BatchCreateOrder",
 		trace.WithLinks(traceLinks...),
+		trace.WithAttributes(attribute.Int(constants.KEY_BATCH_ORDER_COUNT, orderCount)),
 	)
 	defer span.End()
 
-	orderCount := len(params)
 	logger := zerolog.Ctx(c).
 		With().
 		Str(constants.KEY_TAG, "OrderService BatchCreateOrder").
@@ -272,26 +273,17 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 			merged.Items = merged.Items[:len(merged.Items)-1]
 
 			orderId := lastOrderItem.OrderID.String()
+			lastOrderItemProductId := lastOrderItem.ProductID.String()
 			orderIdAttr := attribute.String(constants.KEY_ORDER_ID, orderId)
-			orderItemIdAttr := attribute.String(
-				constants.KEY_ORDER_ITEM_ID,
-				lastOrderItem.ID.String(),
-			)
-			productIdAttr := attribute.String(
-				constants.KEY_PRODUCT_ID,
-				lastOrderItem.ProductID.String(),
-			)
-			span.AddEvent(
-				"poping back order item from order",
-				trace.WithAttributes(orderIdAttr, orderItemIdAttr, productIdAttr),
-			)
+			orderItemIdAttr := attribute.String(constants.KEY_ORDER_ITEM_ID, lastOrderItemProductId)
+			productIdAttr := attribute.String(constants.KEY_PRODUCT_ID, lastOrderItemProductId)
+			traceAttrs := trace.WithAttributes(orderIdAttr, orderItemIdAttr, productIdAttr)
+
+			span.AddEvent("poping back order item from order", traceAttrs)
 			existing := mapOrder[orderId]
 			existing.OrderItems = existing.OrderItems[:len(existing.OrderItems)-1]
 			mapOrder[orderId] = existing
-			span.AddEvent(
-				"poped back order item from order",
-				trace.WithAttributes(orderIdAttr, orderItemIdAttr, productIdAttr),
-			)
+			span.AddEvent("poped back order item from order", traceAttrs)
 		}
 		logger.Trace().Msg("done checking quantity")
 		mapMergedOrderItem[productId] = merged
