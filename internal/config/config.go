@@ -12,9 +12,10 @@ import (
 )
 
 type Application struct {
-	Host      string `mapstructure:"host"      json:"host"`
-	SecretKey string `mapstructure:"secretkey" json:"secret_key"`
-	Port      int    `mapstructure:"port"      json:"port"`
+	Env       string `mapstructure:"env"        json:"env"`
+	Host      string `mapstructure:"host"       json:"host"`
+	SecretKey string `mapstructure:"secret_key" json:"secret_key"`
+	Port      int    `mapstructure:"port"       json:"port"`
 }
 
 type Database struct {
@@ -42,11 +43,10 @@ type Otel struct {
 }
 
 type Config struct {
-	Env         string `mapstructure:"env"         json:"env"`
-	Database    `       mapstructure:"db"          json:"db"`
-	Cache       `       mapstructure:"cache"       json:"cache"`
-	Application `       mapstructure:"application" json:"application"`
-	Otel        `       mapstructure:"otel"        json:"otel"`
+	Database    `mapstructure:"db"          json:"db"`
+	Cache       `mapstructure:"cache"       json:"cache"`
+	Application `mapstructure:"application" json:"application"`
+	Otel        `mapstructure:"otel"        json:"otel"`
 }
 
 var (

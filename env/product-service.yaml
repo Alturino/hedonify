@@ -1,9 +1,9 @@
-env: dev # production
 application:
+  env: development # production
   name: product-service
   host: 0.0.0.0
   port: 8080
-  secretkey: secretkey
+  secret_key: secret_key
 db:
   name: postgres
   host: postgres
