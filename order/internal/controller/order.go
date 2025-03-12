@@ -1,9 +1,12 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -39,7 +42,8 @@ func AttachOrderController(
 	router.Use(middleware.Auth)
 	router.HandleFunc("", controller.FindOrders).Methods(http.MethodGet)
 	router.HandleFunc("/{orderId}", controller.FindOrderById).Methods(http.MethodGet)
-	router.HandleFunc("/checkout", controller.CreateOrder).Methods(http.MethodPost)
+	router.HandleFunc("/checkout", controller.BatchCreateOrder).Methods(http.MethodPost)
+	// router.HandleFunc("/checkout", controller.CreateOrderOptimisticLock).Methods(http.MethodPost)
 }
 
 func (ctrl OrderController) FindOrderById(w http.ResponseWriter, r *http.Request) {
@@ -165,8 +169,8 @@ func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (ctrl OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) {
-	c, span := otel.Tracer.Start(r.Context(), "OrderController CreateOrder")
+func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Request) {
+	c, span := otel.Tracer.Start(r.Context(), "OrderController BatchCreateOrder")
 	defer span.End()
 
 	logger := zerolog.Ctx(c).
@@ -236,8 +240,9 @@ func (ctrl OrderController) CreateOrder(w http.ResponseWriter, r *http.Request) 
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "creating order").Logger()
 	logger.Info().Msg("creating order")
-	param.ResultChannel = make(chan response.Result)
-	defer close(param.ResultChannel)
+	param.ResultChannel = make(chan response.Result, 1)
+	c, done := context.WithTimeoutCause(c, time.Second*3, errors.New("timeout creating order"))
+	defer done()
 	select {
 	case <-c.Done():
 		err = fmt.Errorf("failed creating order with error=%w", c.Err())

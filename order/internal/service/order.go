@@ -149,19 +149,21 @@ func (s OrderService) FindOrders(
 	return orders, nil
 }
 
+type mergedOrderItem struct {
+	Items               []request.OrderItem `json:"items"`
+	OrderedItemQuantity int32               `json:"ordered_item_quantity"`
+}
+
 func (s OrderService) BatchCreateOrder(c context.Context, params []request.CreateOrder) error {
+	traceLinks := createTraceLink(params)
+
 	orderCount := len(params)
-	traceLinks := make([]trace.Link, orderCount)
-	var wg sync.WaitGroup
-	for i, param := range params {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			traceLinks[i] = param.TraceLink
-		}()
-	}
-	wg.Wait()
-	c, span := otel.Tracer.Start(c, "OrderService BatchCreateOrder", trace.WithLinks(traceLinks...))
+	c, span := otel.Tracer.Start(
+		c,
+		"OrderService BatchCreateOrder",
+		trace.WithLinks(traceLinks...),
+		trace.WithAttributes(attribute.Int(constants.KEY_BATCH_ORDER_COUNT, orderCount)),
+	)
 	defer span.End()
 
 	logger := zerolog.Ctx(c).
@@ -174,17 +176,13 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	logger = logger.With().Str(constants.KEY_PROCESS, "merge-order-item").Logger()
 	logger.Trace().Msg("merging order items quantity")
 	span.AddEvent("merging order items quantity")
-	type mergedOrderItem struct {
-		Items               []request.OrderItem `json:"items"`
-		OrderedItemQuantity int32               `json:"ordered_item_quantity"`
-	}
 	mapMergedOrderItem := map[string]mergedOrderItem{}
 	mapOrder := map[string]request.CreateOrder{}
-	productIds := []uuid.UUID{}
-	orderIds := make([]uuid.UUID, orderCount)
-	for i, order := range params {
+	productIds := make([]uuid.UUID, 0, 25)
+	orderIds := make([]uuid.UUID, 0, orderCount)
+	for _, order := range params {
 		orderId := order.ID.String()
-		orderIds[i] = order.ID
+		orderIds = append(orderIds, order.ID)
 		_, ok := mapOrder[orderId]
 		if !ok {
 			mapOrder[orderId] = order
@@ -263,49 +261,173 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	logger.Trace().Msg("check and decrease product quantity")
 	for _, product := range products {
 		productId := product.ID.String()
-		merged := mapMergedOrderItem[productId]
-		logger.Info().Msg("checking quantity")
+		productIdAttr := attribute.String(constants.KEY_PRODUCT_ID, productId)
+
+		lg := logger.With().Str(constants.KEY_PRODUCT_ID, productId).Logger()
+
+		lg.Trace().Msg("checking order item have product id")
+		span.AddEvent("checking order item have product id", trace.WithAttributes(productIdAttr))
+		merged, ok := mapMergedOrderItem[productId]
+		if !ok {
+			lg.Info().Msg("order item does not have product id")
+			span.AddEvent("order item does not have product id")
+			continue
+		}
+		lg.Info().Msg("order item have product id")
+		span.AddEvent("order item have product id", trace.WithAttributes(productIdAttr))
+
+		lg.Trace().Msg("checking product quantity")
+		span.AddEvent("checking product quantity", trace.WithAttributes(productIdAttr))
+		if product.Quantity == 0 {
+			lg.Info().Msg("product is out of stock")
+			span.AddEvent("product is out of stock", trace.WithAttributes(productIdAttr))
+
+			lg.Trace().Msg("removing merged order items")
+			span.AddEvent("removing merged order items", trace.WithAttributes(productIdAttr))
+			merged, ok := mapMergedOrderItem[productId]
+			if !ok {
+				lg.Info().Msg("merged order items not found")
+				span.AddEvent("merged order items not found", trace.WithAttributes(productIdAttr))
+				continue
+			}
+			lg.Info().Msg("merged order items found")
+			span.AddEvent("merged order items found", trace.WithAttributes(productIdAttr))
+
+			lg.Trace().Msg("removing order items from order")
+			span.AddEvent("removing order items from order", trace.WithAttributes(productIdAttr))
+			for _, item := range merged.Items {
+				orderId := item.OrderID.String()
+				orderItemId := item.ID.String()
+				order := mapOrder[orderId]
+				lg := lg.With().
+					Str(constants.KEY_ORDER_ID, orderId).
+					Str(constants.KEY_ORDER_ITEM_ID, orderItemId).
+					Any(constants.KEY_ORDER, order).
+					Logger()
+
+				orderIdAttr := attribute.String(constants.KEY_ORDER_ID, orderId)
+				orderItemIdAttr := attribute.String(constants.KEY_ORDER_ITEM_ID, orderItemId)
+
+				lg.Trace().Msg("checking order still have order item")
+				span.AddEvent(
+					"checking order still have order item",
+					trace.WithAttributes(orderIdAttr, orderItemIdAttr, productIdAttr),
+				)
+				if len(order.OrderItems) == 0 {
+					lg.Info().Msg("order is empty")
+					span.AddEvent(
+						"order is empty",
+						trace.WithAttributes(orderIdAttr, orderItemIdAttr, productIdAttr),
+					)
+					continue
+				}
+				lg.Info().Msg("order is not empty")
+				span.AddEvent(
+					"order is not empty",
+					trace.WithAttributes(orderIdAttr, orderItemIdAttr, productIdAttr),
+				)
+				lg.Trace().Msg("poping back order item from order")
+				span.AddEvent(
+					"poping back order item from order",
+					trace.WithAttributes(orderIdAttr, orderItemIdAttr, productIdAttr),
+				)
+				order.OrderItems = order.OrderItems[:len(order.OrderItems)-1]
+				mapOrder[orderId] = order
+				lg.Info().Msg("poped back order item from order")
+				span.AddEvent(
+					"poped back order item from order",
+					trace.WithAttributes(orderIdAttr, orderItemIdAttr, productIdAttr),
+				)
+			}
+			span.AddEvent("removed order items from order", trace.WithAttributes(productIdAttr))
+			lg.Info().Msg("removed order items from order")
+
+			logger.Trace().Msg("removing order item from mergedOrderItem")
+			span.AddEvent(
+				"removing order item from mergedOrderItem",
+				trace.WithAttributes(productIdAttr),
+			)
+			merged.OrderedItemQuantity = 0
+			merged.Items = merged.Items[:0]
+			mapMergedOrderItem[productId] = merged
+			logger.Info().Msg("removed order item from mergedOrderItem")
+			span.AddEvent(
+				"removed order item from mergedOrderItem",
+				trace.WithAttributes(productIdAttr),
+			)
+			continue
+		}
+		span.AddEvent("product is not out of stock")
+		lg.Info().Msg("product is not out of stock")
+
+		lg.Trace().Msg("decreasing order quantity")
+		span.AddEvent("decreasing order quantity")
 		for product.Quantity-merged.OrderedItemQuantity < 0 {
+			lg.Trace().Msg("checking order items")
+			span.AddEvent("checking order items")
 			if len(merged.Items) == 0 {
-				logger.Info().Msg("no order items")
+				lg.Info().Msg("order items empty")
+				span.AddEvent("order items empty")
 				break
 			}
-			lastOrderItem := merged.Items[len(merged.Items)-1]
-			merged.OrderedItemQuantity -= lastOrderItem.Quantity
-			merged.Items = merged.Items[:len(merged.Items)-1]
+			lg.Info().Msg("order items not empty")
+			span.AddEvent("order items not empty")
 
-			orderId := lastOrderItem.OrderID.String()
+			lastIndex := len(merged.Items) - 1
+			orderItem := merged.Items[lastIndex]
+			orderId := orderItem.OrderID.String()
+			orderItemId := orderItem.ID.String()
+			orderIdAttr := attribute.String(constants.KEY_ORDER_ID, orderId)
+			orderItemIdAttr := attribute.String(constants.KEY_ORDER_ITEM_ID, orderItemId)
+			productIdAttr := attribute.String(constants.KEY_PRODUCT_ID, productId)
+
+			lg := lg.With().
+				Str(constants.KEY_ORDER_ID, orderId).
+				Str(constants.KEY_ORDER_ITEM_ID, orderItemId).
+				Any(constants.KEY_ORDER_ITEM, orderItem).
+				Logger()
+
+			lg.Trace().Msg("poping back order item from merged order item")
+			span.AddEvent(
+				"poping back order item from merged order item",
+				trace.WithAttributes(orderIdAttr, orderItemIdAttr, productIdAttr),
+			)
+			merged.OrderedItemQuantity -= orderItem.Quantity
+			merged.Items = merged.Items[:lastIndex]
+			span.AddEvent(
+				"poped back order item from merged order item",
+				trace.WithAttributes(orderIdAttr, orderItemIdAttr, productIdAttr),
+			)
+			lg.Info().Msg("poped back order item from merged order item")
+
+			logger.Trace().Msg("checking order still have order item")
 			span.AddEvent(
 				"poping back order item from order",
-				trace.WithAttributes(
-					attribute.String(log.KEY_ORDER_ID, orderId),
-					attribute.String(log.KEY_ORDER_ITEM_ID, lastOrderItem.ID.String()),
-					attribute.String(log.KEY_PRODUCT_ID, lastOrderItem.ProductID.String()),
-				),
+				trace.WithAttributes(orderIdAttr, orderItemIdAttr, productIdAttr),
 			)
-			existing := mapOrder[orderId]
-			existing.OrderItems = existing.OrderItems[:len(existing.OrderItems)-1]
-			mapOrder[orderId] = existing
+			order := mapOrder[orderId]
+			order.OrderItems = order.OrderItems[:len(order.OrderItems)-1]
+			mapOrder[orderId] = order
 			span.AddEvent(
 				"poped back order item from order",
-				trace.WithAttributes(
-					attribute.String(log.KEY_ORDER_ID, orderId),
-					attribute.String(log.KEY_ORDER_ITEM_ID, lastOrderItem.ID.String()),
-					attribute.String(log.KEY_PRODUCT_ID, lastOrderItem.ProductID.String()),
-				),
+				trace.WithAttributes(orderIdAttr, orderItemIdAttr, productIdAttr),
 			)
+			lg.Info().Msg("poped back order item from order")
 		}
 		mapMergedOrderItem[productId] = merged
+		logger.Info().Msg("decreased order quantity")
+		span.AddEvent("decreased order quantity")
 	}
+	span.AddEvent("checked and decreased product quantity")
 	logger = logger.With().
 		Any(constants.KEY_ORDER_ITEMS_MERGED, mapMergedOrderItem).
 		Any(constants.KEY_ORDER_AND_ORDER_ITEMS, mapOrder).
 		Logger()
 	logger.Info().Msg("checked and decreased product quantity")
-	span.AddEvent("checked and decreased product quantity")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "update-product-quantity").Logger()
-	span.AddEvent("update product quantity")
+	logger = logger.With().Str(constants.KEY_PROCESS, "update-product-quantity").Logger()
+	logger.Trace().Msg("preparing query for update product quantity")
+	span.AddEvent("preparing query for update product quantity")
 	var sb strings.Builder
 	for productId, item := range mapMergedOrderItem {
 		sb.WriteString(fmt.Sprintf(`when id = '%s' then %d `, productId, item.OrderedItemQuantity))
@@ -314,7 +436,11 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 		`update products set updated_at = now(), quantity = quantity - case %s end where id = any($1::uuid[]) returning *;`,
 		sb.String(),
 	)
-	logger = logger.With().Str("query", query).Logger()
+	logger = logger.With().Str(constants.KEY_QUERY, query).Logger()
+	logger.Info().Msg("prepared query for update product quantity")
+	span.AddEvent("prepared query for update product quantity")
+
+	logger.Trace().Msg("updating product quantity")
 	span.AddEvent("updating product quantity")
 	rows, err := tx.Query(c, query, productIds)
 	if err != nil {
@@ -337,11 +463,15 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "create-order").Logger()
 	logger.Trace().Msg("preparing order args")
+	span.AddEvent("preparing order args")
+	insertOrderArgs := make([]repository.InsertOrdersParams, 0, len(mapOrder))
+	for _, order := range mapOrder {
+		if len(order.OrderItems) == 0 {
 			continue
 		}
 		insertOrderArgs = append(insertOrderArgs, repository.InsertOrdersParams{
-			ID:     item.ID,
-			UserID: item.UserId,
+			ID:     order.ID,
+			UserID: order.UserId,
 			CreatedAt: pgtype.Timestamptz{
 				Time:             time.Now(),
 				InfinityModifier: pgtype.Finite,
@@ -354,7 +484,12 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 			},
 		})
 	}
+	span.AddEvent("prepared order args")
 	logger = logger.With().Any("insert_order_args", insertOrderArgs).Logger()
+	logger.Info().Msg("prepared order args")
+
+	logger.Trace().Msg("inserting orders")
+	span.AddEvent("inserting orders")
 	_, err = s.queries.WithTx(tx).InsertOrders(c, insertOrderArgs)
 	if err != nil {
 		err = fmt.Errorf("failed inserting order with error=%w", err)
@@ -365,8 +500,9 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	}
 	logger.Info().Msg("inserted orders")
 	span.AddEvent("inserted orders")
-	logger.Info().Msg("inserting order items")
-	span.AddEvent("inserting order items")
+
+	logger.Trace().Msg("preparing insert order items args")
+	span.AddEvent("preparing insert order items args")
 	insertOrderItemArgs := []repository.InsertOrderItemParams{}
 	for _, item := range mapMergedOrderItem {
 		for _, orderItem := range item.Items {
@@ -384,6 +520,11 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 			})
 		}
 	}
+	logger = logger.With().Any("insert_order_item_args", insertOrderItemArgs).Logger()
+	logger.Info().Msg("prepared insert order items args")
+	span.AddEvent("prepared insert order items args")
+	logger.Trace().Msg("inserting order items")
+	span.AddEvent("inserting order items")
 	_, err = s.queries.WithTx(tx).InsertOrderItem(c, insertOrderItemArgs)
 	if err != nil {
 		err = fmt.Errorf("failed inserting order items with error=%w", err)
@@ -415,8 +556,8 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	mapResponseOrder := map[string]response.Order{}
 	for _, order := range orders {
 		orderId := order.ID.String()
-		_, ok := mapOrder[orderId]
-		if !ok {
+		orderExist, ok := mapOrder[orderId]
+		if !ok || len(orderExist.OrderItems) == 0 {
 			continue
 		}
 		orderResponse, err := order.Response()
@@ -438,15 +579,6 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	if err != nil {
 		err = fmt.Errorf("failed committing transaction with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
-		var wg sync.WaitGroup
-		for _, param := range params {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				param.ResultChannel <- inResponse.Result{Order: response.Order{}, Err: err}
-			}()
-		}
-		wg.Wait()
 		inOtel.RecordError(err, span)
 		returnOrderError(c, params, err)
 		return err
@@ -457,17 +589,25 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	logger = logger.With().Str(constants.KEY_PROCESS, "sending result").Logger()
 	logger.Trace().Msg("sending result to the orders")
 	span.AddEvent("sending result to the orders")
+	var wg sync.WaitGroup
 	for _, param := range params {
+		ld := logger.With().Str(constants.KEY_ORDER_ID, param.ID.String()).Logger()
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			defer close(param.ResultChannel)
 			orderId := param.ID.String()
+			ld.Trace().Msg("checking is order created")
 			order, ok := mapResponseOrder[orderId]
 			if !ok {
-				param.ResultChannel <- inResponse.Result{Order: response.Order{}, Err: commonErrors.ErrOutOfStock}
+				ld.Debug().Msg("order is not created")
+				param.ResultChannel <- inResponse.Result{Order: response.Order{}, Err: inErrors.ErrOutOfStock}
 				return
 			}
+			ld.Debug().Msg("order is created")
+			ld.Trace().Msg("sending result to order request")
 			param.ResultChannel <- inResponse.Result{Order: order, Err: nil}
+			ld.Debug().Msg("sent order result to order request")
 		}()
 	}
 	wg.Wait()
@@ -492,10 +632,25 @@ func returnOrderError(c context.Context, params []request.CreateOrder, err error
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			defer close(param.ResultChannel)
 			logger.Info().Msg("returning order error")
 			param.ResultChannel <- inResponse.Result{Order: response.Order{}, Err: err}
 			logger.Info().Msg("return order error")
 		}()
 	}
 	wg.Wait()
+}
+
+func createTraceLink(params []request.CreateOrder) []trace.Link {
+	traceLinks := make([]trace.Link, len(params))
+	var wg sync.WaitGroup
+	for i, param := range params {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			traceLinks[i] = param.TraceLink
+		}()
+	}
+	wg.Wait()
+	return traceLinks
 }
