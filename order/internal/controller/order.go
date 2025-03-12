@@ -36,6 +36,7 @@ func AttachOrderController(
 	controller := OrderController{service: service, queue: queue}
 
 	router := mux.PathPrefix("/orders").Subrouter()
+	router.Use(middleware.Auth)
 	router.HandleFunc("", controller.FindOrders).Methods(http.MethodGet)
 	router.HandleFunc("/{orderId}", controller.FindOrderById).Methods(http.MethodGet)
 	router.HandleFunc("/checkout", controller.CreateOrder).Methods(http.MethodPost)

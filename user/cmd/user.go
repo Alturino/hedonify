@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 
 	"github.com/Alturino/ecommerce/internal/config"
@@ -39,6 +40,7 @@ func RunUserService(c context.Context) {
 	logger = logger.With().Str(constants.KEY_PROCESS, "initializing router").Logger()
 	logger.Info().Msg("initializing router")
 	mux := mux.NewRouter()
+	mux.Handle("/metrics", promhttp.Handler())
 	mux.Use(otelmux.Middleware(constants.APP_USER_SERVICE), middleware.Logging)
 	logger.Info().Msg("initialized router")
 
