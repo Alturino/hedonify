@@ -1,3 +1,12 @@
+create table if not exists users (
+    id uuid primary key not null default (gen_random_uuid()),
+    username varchar(128) unique not null default (''),
+    email varchar(128) unique not null default (''),
+    password varchar(256) not null default (''),
+    created_at timestamptz not null default current_timestamp,
+    updated_at timestamptz not null default current_timestamp
+);
+
 insert into users (id, username, email, password) values
   ('33d683cf-a550-4d6d-9e41-d23783470682', 'user_1',  'user_1@test.com',  '$2a$12$3pnU.wo6gqGFefBePmVySOBQ61DONHU5inGy/uG3op9g461uFkQwG'),
   ('e1add261-34bd-4b8b-ae26-5083691d0983', 'user_2',  'user_2@test.com',  '$2a$10$5mXlXI0e6/pLlGHwdo0KTuY5z4cHTHp9Av.o7pS/xnOd8/6NFjFWm'),
