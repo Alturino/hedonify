@@ -12,7 +12,6 @@ receivers:
           scrape_interval: 15s
           static_configs:
             - targets: ["0.0.0.0:8888"]
-            - targets: ["0.0.0.0:8889"]
 
 exporters:
   debug:
@@ -21,10 +20,8 @@ exporters:
     endpoint: jaeger:4317
     tls:
       insecure: true
-  prometheusremotewrite:
-    endpoint: prometheus:9090
-    tls:
-      insecure: true
+  prometheus:
+    endpoint: 0.0.0.0:8889
   otlp/tempo:
     endpoint: tempo:4317
     tls:
@@ -47,4 +44,4 @@ service:
     metrics:
       receivers: [otlp, prometheus]
       processors: [batch]
-      exporters: [prometheusremotewrite, debug]
+      exporters: [prometheus, debug]
