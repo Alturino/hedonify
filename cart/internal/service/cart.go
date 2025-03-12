@@ -20,13 +20,14 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Alturino/ecommerce/cart/internal/common/cache"
-	"github.com/Alturino/ecommerce/cart/internal/common/otel"
+	"github.com/Alturino/ecommerce/cart/internal/cache"
+	"github.com/Alturino/ecommerce/cart/internal/otel"
 	"github.com/Alturino/ecommerce/cart/pkg/request"
 	"github.com/Alturino/ecommerce/cart/pkg/response"
-	"github.com/Alturino/ecommerce/internal/common/constants"
-	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
+	"github.com/Alturino/ecommerce/internal/constants"
+	inHttp "github.com/Alturino/ecommerce/internal/http"
 	"github.com/Alturino/ecommerce/internal/log"
+	inOtel "github.com/Alturino/ecommerce/internal/otel"
 	"github.com/Alturino/ecommerce/internal/repository"
 )
 
@@ -54,12 +55,13 @@ func (svc CartService) InsertCart(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "CartService InsertCart").
-		Int(log.KEY_CART_ITEMS, len(param.CartItems)).
+		Str(constants.KEY_TAG, "CartService InsertCart").
+		Int(constants.KEY_CART_ITEMS, len(param.CartItems)).
+		Str(constants.KEY_USER_ID, userID.String()).
 		Logger()
 
 	logger = logger.With().
-		Str(log.KEY_PROCESS, fmt.Sprintf("finding user by userId=%s in %s", userID.String(), constants.APP_USER_SERVICE)).
+		Str(constants.KEY_PROCESS, fmt.Sprintf("finding user by userId=%s in %s", userID.String(), constants.APP_USER_SERVICE)).
 		Logger()
 	logger.Info().Msgf("finding user by userId=%s", userID.String())
 	req, err := http.NewRequestWithContext(
@@ -70,7 +72,7 @@ func (svc CartService) InsertCart(
 	)
 	if err != nil {
 		err = fmt.Errorf("failed getting userId=%s with error=%w", userID.String(), err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
@@ -79,26 +81,26 @@ func (svc CartService) InsertCart(
 	resp, err := otelhttp.DefaultClient.Do(req)
 	if err != nil {
 		err = fmt.Errorf("failed getting userId=%s with error=%w", userID.String(), err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("userId=%s not found", userID.String())
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
 	logger.Info().Msgf("found user by userId=%s", userID.String())
 
-	logger = logger.With().Str(log.KEY_PROCESS, "initializing transaction").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "initializing transaction").Logger()
 	logger.Info().Msg("initializing transaction")
 	tx, err := svc.pool.BeginTx(c, pgx.TxOptions{})
 	logger.Info().Msg("initialized transaction")
-	defer func(lg zerolog.Logger) {
-		l := lg.With().Str(log.KEY_PROCESS, "rolling back transaction").Logger()
-		l.Info().Msg("rolling back transaction")
+	defer func() {
+		lg := logger.With().Str(constants.KEY_PROCESS, "rolling back transaction").Logger()
+		lg.Trace().Msg("rolling back transaction")
 		err = tx.Rollback(c)
 		if err != nil {
 			err = fmt.Errorf("failed rolling back transaction with error=%w", err)
@@ -106,23 +108,23 @@ func (svc CartService) InsertCart(
 				logger.Info().Err(err).Msg(err.Error())
 				return
 			}
-			logger.Error().Err(err).Msg(err.Error())
-			commonErrors.HandleError(err, span)
+			lg.Error().Err(err).Msg(err.Error())
+			inOtel.RecordError(err, span)
 			return
 		}
-		l.Info().Msg("rolled back transaction")
-	}(logger)
+		lg.Info().Msg("rolled back transaction")
+	}()
 
-	logger = logger.With().Str(log.KEY_PROCESS, "inserting cart to database").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "inserting cart to database").Logger()
 	logger.Info().Msg("inserting cart to database")
 	cart, err := svc.queries.WithTx(tx).InsertCart(c, userID)
 	if err != nil {
 		err = fmt.Errorf("failed inserting cart with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
-	logger = logger.With().Any(log.KEY_CART, cart).Logger()
+	logger = logger.With().Any(constants.KEY_CART, cart).Logger()
 	logger.Info().Msg("inserted cart to database")
 
 	logger.Info().Msg("merging cart items")
@@ -131,8 +133,8 @@ func (svc CartService) InsertCart(
 	merged := []request.CartItem{}
 	for _, item := range param.CartItems {
 		lg := logger.With().
-			Str(log.KEY_PRODUCT_ID, item.ProductId.String()).
-			Int32(log.KEY_CART_ITEM_QUANTITY, item.Quantity).
+			Str(constants.KEY_PRODUCT_ID, item.ProductId.String()).
+			Int32(constants.KEY_CART_ITEM_QUANTITY, item.Quantity).
 			Logger()
 		existing, ok := mp[item.ProductId.String()]
 		if ok {
@@ -143,7 +145,7 @@ func (svc CartService) InsertCart(
 				Quantity:  existing.Quantity + item.Quantity,
 			}
 			lg.Info().
-				Int32(log.KEY_CART_ITEM_MERGED_QUANTITY, existing.Quantity+item.Quantity).
+				Int32(constants.KEY_CART_ITEM_MERGED_QUANTITY, existing.Quantity+item.Quantity).
 				Msg("merged cart item")
 			continue
 		}
@@ -153,11 +155,11 @@ func (svc CartService) InsertCart(
 		merged = append(merged, item)
 	}
 	param.CartItems = merged
-	logger = logger.With().Any(log.KEY_CART_ITEMS_MERGED, merged).Logger()
-	logger.Info().Msg("merged cart items")
 	span.AddEvent("merged cart items")
+	logger = logger.With().Any(constants.KEY_CART_ITEMS_MERGED, merged).Logger()
+	logger.Info().Msg("merged cart items")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "inserting cart items to database").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "inserting cart items to database").Logger()
 	logger.Info().Msg("inserting cart items to database")
 	args := make([]repository.InsertCartItemsParams, len(param.CartItems))
 	for i, item := range param.CartItems {
@@ -175,59 +177,59 @@ func (svc CartService) InsertCart(
 			},
 		}
 	}
-	logger = logger.With().Any(log.KEY_CART_ITEMS, args).Logger()
+	logger = logger.With().Any(constants.KEY_CART_ITEMS, args).Logger()
 	logger.Info().Msg("inserting cart items to database")
 	insertedCount, err := svc.queries.WithTx(tx).InsertCartItems(c, args)
 	if err != nil {
 		err = fmt.Errorf("failed inserting cartItems to database with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
-	logger = logger.With().Int64(log.KEY_CART_ITEMS_COUNT, insertedCount).Logger()
+	logger = logger.With().Int64(constants.KEY_CART_ITEMS_COUNT, insertedCount).Logger()
 	logger.Info().Msgf("inserted %d cartItems to database", insertedCount)
 
-	logger = logger.With().Str(log.KEY_PROCESS, "finding cart by id").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "finding cart by id").Logger()
 	logger.Info().Msg("finding cart by id")
 	cartDb, err := svc.queries.WithTx(tx).
 		FindCartById(c, repository.FindCartByIdParams{ID: userID, ID_2: cart.ID})
 	if err != nil {
 		err = fmt.Errorf("failed finding cart by id with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
-	logger = logger.With().RawJSON(log.KEY_CART_ITEMS, cartDb.CartItems).Logger()
+	logger = logger.With().RawJSON(constants.KEY_CART_ITEMS, cartDb.CartItems).Logger()
 	logger.Info().Msg("found cart by id")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "mapping cart").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "mapping cart").Logger()
 	logger.Info().Msg("mapping cart")
 	cartResponse, err := cartDb.Response()
 	if err != nil {
 		err = fmt.Errorf("failed mapping cart with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
-	logger = logger.With().Any(log.KEY_CART_RESPONSE, cartResponse).Logger()
+	logger = logger.With().Any(constants.KEY_CART_RESPONSE, cartResponse).Logger()
 	logger.Info().Msg("mapped cart")
 
 	cacheKey := fmt.Sprintf(cache.KEY_CARTS, cart.ID.String())
 	logger = logger.With().
-		Str(log.KEY_PROCESS, "inserting cart to cache").
-		Str(log.KEY_CACHE_KEY, cacheKey).
+		Str(constants.KEY_PROCESS, "inserting cart to cache").
+		Str(constants.KEY_CACHE_KEY, cacheKey).
 		Logger()
 	logger.Info().Msg("inserting cart to cache")
 	err = svc.cache.JSONSet(c, cacheKey, "$", cartResponse).Err()
 	if err != nil {
 		err = fmt.Errorf("failed inserting cart to cache with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
 	logger.Info().Msg("inserted cart to cache")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "committing transaction").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "committing transaction").Logger()
 	logger.Info().Msg("committing transaction")
 	err = tx.Commit(c)
 	if err != nil {
@@ -238,7 +240,7 @@ func (svc CartService) InsertCart(
 				errors.Join(err, newErr),
 			)
 		}
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
@@ -258,65 +260,65 @@ func (s CartService) FindCartById(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "CartService FindCartById").
-		Str(log.KEY_CACHE_KEY, cacheKey).
+		Str(constants.KEY_TAG, "CartService FindCartById").
+		Str(constants.KEY_CACHE_KEY, cacheKey).
 		Logger()
 
-	logger = logger.With().Str(log.KEY_PROCESS, "finding cart in cache").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "finding cart in cache").Logger()
 	logger.Info().Msg("finding cart in cache")
 	jsonCache, err := s.cache.JSONGet(c, cacheKey).Result()
 	if err != nil {
 		err = fmt.Errorf("failed finding cart in cache with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 
-		logger = logger.With().Str(log.KEY_PROCESS, "finding cart in db").Logger()
+		logger = logger.With().Str(constants.KEY_PROCESS, "finding cart in db").Logger()
 		cart, err := s.queries.FindCartById(
 			c,
 			repository.FindCartByIdParams{ID: param.ID, ID_2: param.UserId},
 		)
 		if err != nil {
 			err = fmt.Errorf("failed finding cart in db with error=%w", err)
-			commonErrors.HandleError(err, span)
+			inOtel.RecordError(err, span)
 			logger.Error().Err(err).Msg(err.Error())
 			return response.Cart{}, err
 		}
-		logger = logger.With().Any(log.KEY_CART, cart).Logger()
+		logger = logger.With().Any(constants.KEY_CART, cart).Logger()
 		logger.Info().Msg("found cart in db")
 
-		logger = logger.With().Str(log.KEY_PROCESS, "inserting cart in cache").Logger()
+		logger = logger.With().Str(constants.KEY_PROCESS, "inserting cart in cache").Logger()
 		err = s.cache.JSONSet(c, cacheKey, "$", cart).Err()
 		if err != nil {
 			err = fmt.Errorf("failed inserting cart in cache with error=%w", err)
-			commonErrors.HandleError(err, span)
+			inOtel.RecordError(err, span)
 			logger.Error().Err(err).Msg(err.Error())
 			return response.Cart{}, err
 		}
 		logger.Info().Msg("inserted cart in cache")
 
-		logger = logger.With().Str(log.KEY_PROCESS, "mapping cart").Logger()
+		logger = logger.With().Str(constants.KEY_PROCESS, "mapping cart").Logger()
 		logger.Info().Msg("mapping cart")
 		cartResponse, err := cart.Response()
 		if err != nil {
 			err = fmt.Errorf("failed mapping cart with error=%w", err)
-			commonErrors.HandleError(err, span)
+			inOtel.RecordError(err, span)
 			logger.Error().Err(err).Msg(err.Error())
 			return response.Cart{}, err
 		}
-		logger = logger.With().Any(log.KEY_CART_RESPONSE, cartResponse).Logger()
+		logger = logger.With().Any(constants.KEY_CART_RESPONSE, cartResponse).Logger()
 		logger.Info().Msg("mapped cart")
 
 		return cart.Response()
 	}
-	logger = logger.With().RawJSON(log.KEY_JSON_CACHE, []byte(jsonCache)).Logger()
+	logger = logger.With().RawJSON(constants.KEY_JSON_CACHE, []byte(jsonCache)).Logger()
 	logger.Info().Msg("found cart in cache")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "unmarshaling cache").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "unmarshaling cache").Logger()
 	logger.Info().Msg("unmarshaling cache")
 	err = json.Unmarshal([]byte(jsonCache), &cart)
 	if err != nil {
 		err = fmt.Errorf("failed unmarshaling cache with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
@@ -334,10 +336,10 @@ func (s CartService) FindCartByUserId(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "CartService FindCartByUserId").
+		Str(constants.KEY_TAG, "CartService FindCartByUserId").
 		Logger()
 
-	logger = logger.With().Str(log.KEY_PROCESS, "finding cart in cache").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "finding cart in cache").Logger()
 	logger.Info().Msg("finding cart in cache")
 	jsonString, err := s.cache.Get(c, fmt.Sprintf(cache.KEY_CARTS_BY_USER_ID, userId.String())).
 		Result()
@@ -345,35 +347,35 @@ func (s CartService) FindCartByUserId(
 		err = fmt.Errorf("failed finding cache with error=%w", err)
 		logger.Info().Err(err).Msg(err.Error())
 
-		logger = logger.With().Str(log.KEY_PROCESS, "finding cart in db").Logger()
+		logger = logger.With().Str(constants.KEY_PROCESS, "finding cart in db").Logger()
 		logger.Info().Msg("finding cart in db")
 		carts, err := s.queries.FindCartByUserId(c, userId)
 		if err != nil {
 			err = fmt.Errorf("failed finding cart in db with error=%w", err)
-			commonErrors.HandleError(err, span)
+			inOtel.RecordError(err, span)
 			logger.Error().Err(err).Msg(err.Error())
 			return nil, err
 		}
 		logger.Info().Msg("found cart in db")
 
-		logger = logger.With().Str(log.KEY_PROCESS, "marshaling cache").Logger()
+		logger = logger.With().Str(constants.KEY_PROCESS, "marshaling cache").Logger()
 		logger.Info().Msg("marshaling cache")
 		json, err := json.Marshal(carts)
 		if err != nil {
 			err = fmt.Errorf("failed marshaling cache with error=%w", err)
-			commonErrors.HandleError(err, span)
+			inOtel.RecordError(err, span)
 			logger.Error().Err(err).Msg(err.Error())
 			return nil, err
 		}
 		logger.Info().Msg("marshaled cache")
 
-		logger = logger.With().Str(log.KEY_PROCESS, "inserting cache").Logger()
+		logger = logger.With().Str(constants.KEY_PROCESS, "inserting cache").Logger()
 		logger.Info().Msg("inserting cache")
 		err = s.cache.Set(c, fmt.Sprintf(cache.KEY_CARTS_BY_USER_ID, userId.String()), json, time.Hour*1).
 			Err()
 		if err != nil {
 			err = fmt.Errorf("failed inserting cache with error=%w", err)
-			commonErrors.HandleError(err, span)
+			inOtel.RecordError(err, span)
 			logger.Error().Err(err).Msg(err.Error())
 			return nil, err
 		}
@@ -382,12 +384,12 @@ func (s CartService) FindCartByUserId(
 	}
 	logger.Info().Msg("found cart in cache")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "unmarshaling cache").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "unmarshaling cache").Logger()
 	logger.Info().Msg("unmarshaling cache")
 	err = json.Unmarshal([]byte(jsonString), &carts)
 	if err != nil {
 		err = fmt.Errorf("failed unmarshaling cache with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return nil, err
 	}
@@ -402,8 +404,8 @@ func (s CartService) RemoveCartItem(c context.Context, param request.RemoveCartI
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "CartService RemoveCartItem").
-		Str(log.KEY_PROCESS, "finding cartId").
+		Str(constants.KEY_TAG, "CartService RemoveCartItem").
+		Str(constants.KEY_PROCESS, "finding cartId").
 		Logger()
 
 	logger.Info().Msg("finding cartId")
@@ -413,13 +415,13 @@ func (s CartService) RemoveCartItem(c context.Context, param request.RemoveCartI
 	)
 	if err != nil {
 		err = fmt.Errorf("failed finding cartId=%s with error=%w", param.ID.String(), err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return err
 	}
 	logger.Info().Msg("found cartId")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "finding cartItemId").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "finding cartItemId").Logger()
 	logger.Info().Msg("finding cartItemId")
 	_, err = s.queries.FindCartItemById(c, param.ID)
 	if err != nil {
@@ -429,24 +431,24 @@ func (s CartService) RemoveCartItem(c context.Context, param request.RemoveCartI
 			param.CartId.String(),
 			err,
 		)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return err
 	}
 	logger.Info().Msg("found cartItemId")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "deleting.cart.from.cache").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "deleting.cart.from.cache").Logger()
 	logger.Info().Msg("deleting cart from cache")
 	err = s.cache.Del(c, cache.KEY_CARTS+param.CartId.String()).Err()
 	if err != nil {
 		err = fmt.Errorf("failed deleting cart from cache with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return err
 	}
 	logger.Info().Msg("deleted cart from cache")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "deleting cartItem").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "deleting cartItem").Logger()
 	logger.Info().Msg("deleting cartItem")
 	_, err = s.queries.DeleteCartItemFromCartsById(
 		c,
@@ -459,7 +461,7 @@ func (s CartService) RemoveCartItem(c context.Context, param request.RemoveCartI
 			param.CartId.String(),
 			err,
 		)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return err
 	}
@@ -476,18 +478,18 @@ func (s CartService) RemoveCart(c context.Context, param request.RemoveCart) err
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "CartService RemoveCart").
-		Str(log.KEY_CACHE_KEY, cacheKey).
+		Str(constants.KEY_TAG, "CartService RemoveCart").
+		Str(constants.KEY_CACHE_KEY, cacheKey).
 		Logger()
 
 	msg := fmt.Sprintf("finding cartId=%s and userId=%s", param.ID.String(), param.UserId.String())
-	logger = logger.With().Str(log.KEY_PROCESS, msg).Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, msg).Logger()
 	logger.Info().Msg(msg)
 	span.AddEvent(msg)
 	_, err := s.FindCartById(c, request.FindCartById(param))
 	if err != nil {
 		err = fmt.Errorf("failed finding cartId=%s with error=%w", param.ID.String(), err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return err
 	}
@@ -500,7 +502,7 @@ func (s CartService) RemoveCart(c context.Context, param request.RemoveCart) err
 		param.ID.String(),
 		param.UserId.String(),
 	)
-	logger = logger.With().Str(log.KEY_PROCESS, msg).Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, msg).Logger()
 	span.AddEvent(msg)
 	logger.Info().Msg(msg)
 	_, err = s.queries.DeleteCartByIdAndUserId(
@@ -514,7 +516,7 @@ func (s CartService) RemoveCart(c context.Context, param request.RemoveCart) err
 			param.UserId.String(),
 			err,
 		)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return err
 	}
@@ -532,7 +534,7 @@ func (s CartService) RemoveCart(c context.Context, param request.RemoveCart) err
 	err = s.cache.JSONDel(c, cacheKey, "$").Err()
 	if err != nil {
 		err = fmt.Errorf("failed deleting cart from cache with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return err
 	}
@@ -549,10 +551,10 @@ func (s CartService) CheckoutCart(
 	param request.CheckoutCart,
 ) (response.Cart, error) {
 	requestId := log.RequestIDFromContext(c)
-	requestIdAttr := attribute.String(log.KEY_REQUEST_ID, requestId)
-	userIdAttr := attribute.String(log.KEY_USER_ID, param.UserId.String())
-	cartIdAttr := attribute.String(log.KEY_CART_ID, param.CartId.String())
-	orderIdAttr := attribute.String(log.KEY_ORDER_ID, param.CartId.String())
+	requestIdAttr := attribute.String(constants.KEY_REQUEST_ID, requestId)
+	userIdAttr := attribute.String(constants.KEY_USER_ID, param.UserId.String())
+	cartIdAttr := attribute.String(constants.KEY_CART_ID, param.CartId.String())
+	orderIdAttr := attribute.String(constants.KEY_ORDER_ID, param.CartId.String())
 	attrs := trace.WithAttributes(requestIdAttr, userIdAttr, cartIdAttr, orderIdAttr)
 
 	c, span := otel.Tracer.Start(c, "CartService CheckoutCart", attrs)
@@ -560,13 +562,13 @@ func (s CartService) CheckoutCart(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "CartService CheckoutCart").
-		Str(log.KEY_USER_ID, param.UserId.String()).
-		Str(log.KEY_CART_ID, param.CartId.String()).
-		Str(log.KEY_ORDER_ID, param.CartId.String()).
+		Str(constants.KEY_TAG, "CartService CheckoutCart").
+		Str(constants.KEY_USER_ID, param.UserId.String()).
+		Str(constants.KEY_CART_ID, param.CartId.String()).
+		Str(constants.KEY_ORDER_ID, param.CartId.String()).
 		Logger()
 
-	logger = logger.With().Str(log.KEY_PROCESS, "find-user").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "find-user").Logger()
 	logger.Info().Msg("finding user by id")
 	span.AddEvent("finding user by id")
 	req, err := http.NewRequestWithContext(
@@ -577,7 +579,7 @@ func (s CartService) CheckoutCart(
 	)
 	if err != nil {
 		err = fmt.Errorf("failed finding user by id with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
@@ -585,47 +587,47 @@ func (s CartService) CheckoutCart(
 	resp, err := otelhttp.DefaultClient.Do(req)
 	if err != nil {
 		err = fmt.Errorf("failed getting userId with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		err = errors.New("user not found")
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
 	span.AddEvent("found user")
 	logger.Info().Msg("found user")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "find-cart").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "find-cart").Logger()
 	logger.Info().Msg("finding cart by id")
 	span.AddEvent("finding cart by id")
 	c = logger.WithContext(c)
 	cart, err := s.FindCartById(c, request.FindCartById{ID: param.CartId, UserId: param.UserId})
 	if err != nil {
 		err = fmt.Errorf("failed finding cart by id with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
 	span.AddEvent("found cart by id")
 	logger.Info().Msg("found cart by id")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "mapping-cart").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "mapping-cart").Logger()
 	logger.Info().Msg("mapping cart to order")
 	span.AddEvent("mapping cart to order")
 	order := cart.Order()
 	span.AddEvent("mapped cart to order")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "create-checkout-request").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "create-checkout-request").Logger()
 	logger.Info().Msg("creating checkout request to order-service")
 	span.AddEvent("creating checkout request to order-service")
 	orderJson, err := json.Marshal(order)
 	if err != nil {
 		err = fmt.Errorf("failed marshaling order with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Cart{}, err
 	}
@@ -638,13 +640,13 @@ func (s CartService) CheckoutCart(
 	if err != nil {
 		err = fmt.Errorf("failed creating request to order-service with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		return response.Cart{}, err
 	}
 	logger.Info().Msg("created checkout request to order-service")
 	span.AddEvent("created checkout request to order-service")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "sending-checkout-request").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "sending-checkout-request").Logger()
 	logger.Info().Msg("sending checkout request to order-service")
 	span.AddEvent("sending checkout request to order-service")
 	req.Header.Add("Authorization", "Bearer "+jwt.Raw)
@@ -653,28 +655,28 @@ func (s CartService) CheckoutCart(
 	if err != nil {
 		err = fmt.Errorf("failed checkout cart to order-service with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		return response.Cart{}, err
 	}
 	defer resp.Body.Close()
 	span.AddEvent("sent checkout request to order-service")
 	logger.Info().Msg("sent checkout request to order-service")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "unmarshaling-checkout-response").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "unmarshaling-checkout-response").Logger()
 	logger.Info().Msg("unmarshaling checkout response")
 	respBody := map[string]interface{}{}
 	span.AddEvent("unmarshaling checkout response")
 	err = json.NewDecoder(resp.Body).Decode(&respBody)
 	if err != nil {
 		logger.Error().Err(err).Msg(err.Error())
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		return response.Cart{}, err
 	}
 	logger = logger.With().
 		Dict("response", zerolog.Dict().
-			Str(log.KEY_REQUEST_ID, requestId).
-			Any(log.KEY_REQUEST_HEADER, resp.Header).
-			Any(log.KEY_REQUEST_BODY, respBody)).
+			Str(constants.KEY_REQUEST_ID, requestId).
+			Any(constants.KEY_HEADER, checkoutResp.Header).
+			Any(constants.KEY_BODY, checkoutRespBody)).
 		Logger()
 	span.AddEvent("unmarshaled checkout response")
 	logger.Info().Msg("unmarshaled checkout response")
@@ -685,13 +687,13 @@ func (s CartService) CheckoutCart(
 			respBody["message"],
 		)
 		logger.Error().Err(err).Msg(err.Error())
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		return response.Cart{}, err
 	}
 	span.AddEvent("cart successfully checked out")
 	logger.Info().Msg("cart successfully checked out")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "remove-cart").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "remove-cart").Logger()
 	logger.Info().Msg("removing cart")
 	span.AddEvent("removing cart")
 	c = logger.WithContext(c)
@@ -699,7 +701,7 @@ func (s CartService) CheckoutCart(
 	if err != nil {
 		err = fmt.Errorf("failed removing cart with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		return response.Cart{}, err
 	}
 	span.AddEvent("removed cart")

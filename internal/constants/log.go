@@ -1,4 +1,4 @@
-package log
+package constants
 
 const (
 	KEY_APP_NAME                   = "app"
@@ -37,6 +37,7 @@ const (
 	KEY_PATH_VALUES                = "path_values"
 	KEY_PRICE                      = "price"
 	KEY_PROCESS                    = "process"
+	KEY_QUERY                      = "query"
 	KEY_PRODUCT                    = "product"
 	KEY_PRODUCTS                   = "products"
 	KEY_PRODUCTS_UPDATED_QUANTITY  = "products_updated_quantity"
@@ -48,10 +49,11 @@ const (
 	KEY_PRODUCT_QUANTITY_DECREASED = "product_quantity_decreased"
 	KEY_PRODUCT_QUANTITY_INCREASED = "product_quantity_increased"
 	KEY_PRODUCT_UPDATED_LIST       = "product_updated_list"
+	KEY_PRODUCT_UPDATED            = "product_updated"
 	KEY_RABBIT_MQ_CONNECTION_URL   = "rabbitmq_connection_url"
 	KEY_REQUEST                    = "request"
-	KEY_REQUEST_BODY               = "body"
-	KEY_REQUEST_HEADER             = "header"
+	KEY_BODY                       = "body"
+	KEY_HEADER                     = "header"
 	KEY_REQUEST_HOST               = "host"
 	KEY_REQUEST_ID                 = "request_id"
 	KEY_REQUEST_IP                 = "ip"

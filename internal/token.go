@@ -1,4 +1,4 @@
-package common
+package internal
 
 import (
 	"context"
@@ -8,11 +8,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	"github.com/Alturino/ecommerce/internal/common/constants"
-	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
-	"github.com/Alturino/ecommerce/internal/common/otel"
 	"github.com/Alturino/ecommerce/internal/config"
-	"github.com/Alturino/ecommerce/internal/log"
+	"github.com/Alturino/ecommerce/internal/constants"
+	"github.com/Alturino/ecommerce/internal/errors"
+	"github.com/Alturino/ecommerce/internal/otel"
 )
 
 func VerifyToken(c context.Context, token string) (*jwt.Token, error) {
@@ -21,16 +20,16 @@ func VerifyToken(c context.Context, token string) (*jwt.Token, error) {
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "VerifyToken").
+		Str(constants.KEY_TAG, "VerifyToken").
 		Logger()
 
-	logger = logger.With().Str(log.KEY_PROCESS, "initializing config").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "initializing config").Logger()
 	logger.Info().Msg("initializing config")
 	c = logger.WithContext(c)
-	config := config.InitConfig(c, constants.APP_USER_SERVICE)
+	config := config.Get(c, constants.APP_USER_SERVICE)
 	logger.Info().Msg("initialized config")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "parsing claims").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "parsing claims").Logger()
 	logger.Info().Msg("parsing claims")
 	jwtToken, err := jwt.ParseWithClaims(token,
 		&jwt.RegisteredClaims{},
@@ -46,19 +45,19 @@ func VerifyToken(c context.Context, token string) (*jwt.Token, error) {
 	if err != nil {
 		err = fmt.Errorf("failed parsing claims with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
-		commonErrors.HandleError(err, span)
+		otel.RecordError(err, span)
 		return nil, err
 	}
-	logger = logger.With().Any(log.KEY_TOKEN, jwtToken).Logger()
+	logger = logger.With().Any(constants.KEY_TOKEN, jwtToken).Logger()
 	logger.Info().Msg("parsed claims")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "validating token").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "validating token").Logger()
 	logger.Info().Msg("validating token")
 	if !jwtToken.Valid {
-		err = fmt.Errorf("failed validating token with error=%w", commonErrors.ErrTokenInvalid)
-		commonErrors.HandleError(err, span)
+		err = fmt.Errorf("failed validating token with error=%w", errors.ErrTokenInvalid)
+		otel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		return nil, commonErrors.ErrTokenInvalid
+		return nil, errors.ErrTokenInvalid
 	}
 	logger.Info().Msg("validated token")
 
@@ -81,13 +80,13 @@ func UserIdFromJwtToken(c context.Context) (uuid.UUID, error) {
 
 	logger := zerolog.Ctx(c).With().Logger()
 
-	logger = logger.With().Str(log.KEY_PROCESS, "getting userId from jwtToken").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "getting userId from jwtToken").Logger()
 	logger.Info().Msg("getting jwtToken from context")
 	jwt := JwtTokenFromContext(c)
 	subject, err := jwt.Claims.GetSubject()
 	if err != nil {
 		err = fmt.Errorf("failed getting subject from jwt with error=%w", err)
-		commonErrors.HandleError(err, span)
+		otel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return uuid.Nil, err
 	}
@@ -97,11 +96,11 @@ func UserIdFromJwtToken(c context.Context) (uuid.UUID, error) {
 	userId, err := uuid.Parse(subject)
 	if err != nil {
 		err = fmt.Errorf("failed parsing subject=%s with error=%w", subject, err)
-		commonErrors.HandleError(err, span)
+		otel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return uuid.Nil, err
 	}
-	logger = logger.With().Str(log.KEY_USER_ID, userId.String()).Logger()
+	logger = logger.With().Str(constants.KEY_USER_ID, userId.String()).Logger()
 	logger.Info().Msg("parsed subject as userId")
 
 	return userId, nil

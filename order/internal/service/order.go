@@ -18,10 +18,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
-	"github.com/Alturino/ecommerce/internal/log"
+	"github.com/Alturino/ecommerce/internal/constants"
+	inErrors "github.com/Alturino/ecommerce/internal/errors"
+	inOtel "github.com/Alturino/ecommerce/internal/otel"
 	"github.com/Alturino/ecommerce/internal/repository"
-	"github.com/Alturino/ecommerce/order/internal/common/otel"
+	"github.com/Alturino/ecommerce/order/internal/otel"
 	inResponse "github.com/Alturino/ecommerce/order/internal/response"
 	"github.com/Alturino/ecommerce/order/pkg/request"
 	"github.com/Alturino/ecommerce/order/pkg/response"
@@ -50,8 +51,8 @@ func (s OrderService) FindOrderById(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "OrderService FindOrderById").
-		Str(log.KEY_PROCESS, "finding order by id").
+		Str(constants.KEY_TAG, "OrderService FindOrderById").
+		Str(constants.KEY_PROCESS, "finding order by id").
 		Logger()
 
 	logger.Info().Msg("finding order by id")
@@ -61,38 +62,38 @@ func (s OrderService) FindOrderById(
 	)
 	if err != nil {
 		err = fmt.Errorf("failed finding order by id with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Order{}, err
 	}
 	logger.Info().Msg("found order by id")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "mapping order").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "mapping order").Logger()
 	logger.Info().Msg("mapping order")
 	res, err := order.ResponseOrder()
 	if err != nil {
 		err = fmt.Errorf("failed mapping order with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Order{}, err
 	}
 	logger.Info().Msg("mapped order")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "finding order item by id").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "finding order item by id").Logger()
 	logger.Info().Msgf("finding order item by orderId=%s", param.OrderId)
 	repoOrderItem, err := s.queries.FindOrderItemById(c, param.OrderId)
 	if err != nil {
 		err = fmt.Errorf("failed finding order by id=%s with error=%w", param.OrderId, err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return response.Order{}, err
 	}
 	logger.Info().
-		Any(log.KEY_ORDER_ITEMS, repoOrderItem).
+		Any(constants.KEY_ORDER_ITEMS, repoOrderItem).
 		Msgf("found order item by id=%s", param.OrderId)
 
 	logger = logger.With().
-		Str(log.KEY_PROCESS, "mapping orderItems").
+		Str(constants.KEY_PROCESS, "mapping orderItems").
 		Logger()
 
 	logger.Info().Msgf("mapping orderItems")
@@ -124,10 +125,10 @@ func (s OrderService) FindOrders(
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "OrderService FindOrders").
-		Str(log.KEY_PROCESS, "finding order by userId").
-		Str(log.KEY_USER_ID, param.UserId.String()).
-		Str(log.KEY_ORDER_ID, param.OrderId.String()).
+		Str(constants.KEY_TAG, "OrderService FindOrders").
+		Str(constants.KEY_PROCESS, "finding order by userId").
+		Str(constants.KEY_USER_ID, param.UserId.String()).
+		Str(constants.KEY_ORDER_ID, param.OrderId.String()).
 		Logger()
 
 	logger.Info().Msg("finding orders")
@@ -139,11 +140,11 @@ func (s OrderService) FindOrders(
 			param.UserId,
 			err,
 		)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		return nil, err
 	}
-	logger.Info().Any(log.KEY_ORDERS, orders).Msg("found orders")
+	logger.Info().Any(constants.KEY_ORDERS, orders).Msg("found orders")
 
 	return orders, nil
 }
@@ -165,13 +166,13 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "OrderService BatchCreateOrder").
-		Int(log.KEY_BATCH_ORDER_COUNT, orderCount).
-		Any(log.KEY_ORDERS, params).
+		Str(constants.KEY_TAG, "OrderService BatchCreateOrder").
+		Int(constants.KEY_BATCH_ORDER_COUNT, orderCount).
+		Any(constants.KEY_ORDERS, params).
 		Logger()
 
-	logger = logger.With().Str(log.KEY_PROCESS, "merge-order-item").Logger()
-	logger.Info().Msg("merging order items quantity")
+	logger = logger.With().Str(constants.KEY_PROCESS, "merge-order-item").Logger()
+	logger.Trace().Msg("merging order items quantity")
 	span.AddEvent("merging order items quantity")
 	type mergedOrderItem struct {
 		Items               []request.OrderItem `json:"items"`
@@ -205,26 +206,25 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 		}
 	}
 	logger = logger.With().
-		Any(log.KEY_ORDER_ITEMS_MERGED, mapMergedOrderItem).
-		Any(log.KEY_ORDER_ITEMS, mapOrder).
-		Any(log.KEY_PRODUCT_IDS, productIds).
+		Any(constants.KEY_ORDER_ITEMS_MERGED, mapMergedOrderItem).
+		Any(constants.KEY_PRODUCT_IDS, productIds).
 		Logger()
 	logger.Info().Msg("merged order items quantity")
 	span.AddEvent("merged order items quantity")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "initializing-transaction").Logger()
-	logger.Info().Msg("initializing transaction")
+	logger = logger.With().Str(constants.KEY_PROCESS, "initializing-transaction").Logger()
+	logger.Trace().Msg("initializing transaction")
 	span.AddEvent("initializing transaction")
 	tx, err := s.pool.BeginTx(c, pgx.TxOptions{})
 	if err != nil {
 		err = fmt.Errorf("failed initializing transaction with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		returnOrderError(c, params, err)
 		return err
 	}
 	defer func() {
-		logger.Info().Msg("rolling back transaction")
+		logger.Trace().Msg("rolling back transaction")
 		span.AddEvent("rolling back transaction")
 		err := tx.Rollback(c)
 		if err != nil {
@@ -235,7 +235,8 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 				return
 			}
 			logger.Error().Err(err).Msg(err.Error())
-			commonErrors.HandleError(err, span)
+			inOtel.RecordError(err, span)
+			return
 		}
 		logger.Info().Msg("rolled back transaction")
 		span.AddEvent("rolled back transaction")
@@ -243,23 +244,23 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	logger.Info().Msg("initialized transaction")
 	span.AddEvent("initialized transaction")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "check-quantity").Logger()
-	logger.Info().Msg("get product quantity")
+	logger = logger.With().Str(constants.KEY_PROCESS, "check-quantity").Logger()
+	logger.Trace().Msg("get product quantity")
 	span.AddEvent("get product quantity")
 	products, err := s.queries.WithTx(tx).FindProductsByIds(c, productIds)
 	if err != nil {
 		err = fmt.Errorf("failed get products with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		returnOrderError(c, params, err)
 		return err
 	}
-	logger = logger.With().Any(log.KEY_PRODUCTS, products).Logger()
+	logger = logger.With().Any(constants.KEY_PRODUCTS, products).Logger()
 	logger.Info().Msg("got product quantity")
 	span.AddEvent("got product quantity")
 
 	span.AddEvent("check and decrease product quantity")
-	logger.Info().Msg("check and decrease product quantity")
+	logger.Trace().Msg("check and decrease product quantity")
 	for _, product := range products {
 		productId := product.ID.String()
 		merged := mapMergedOrderItem[productId]
@@ -297,8 +298,8 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 		mapMergedOrderItem[productId] = merged
 	}
 	logger = logger.With().
-		Any(log.KEY_ORDER_ITEMS_MERGED, mapMergedOrderItem).
-		Any(log.KEY_ORDER_AND_ORDER_ITEMS, mapOrder).
+		Any(constants.KEY_ORDER_ITEMS_MERGED, mapMergedOrderItem).
+		Any(constants.KEY_ORDER_AND_ORDER_ITEMS, mapOrder).
 		Logger()
 	logger.Info().Msg("checked and decreased product quantity")
 	span.AddEvent("checked and decreased product quantity")
@@ -319,7 +320,7 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	if err != nil {
 		err = fmt.Errorf("failed updating product quantity with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		returnOrderError(c, params, err)
 		return err
 	}
@@ -327,18 +328,15 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	if err != nil {
 		err = fmt.Errorf("failed updating product quantity with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		returnOrderError(c, params, err)
 		return err
 	}
 	logger.Info().Msg("updated product quantity")
 	span.AddEvent("updated product quantity")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "create-order").Logger()
-	span.AddEvent("inserting orders")
-	insertOrderArgs := []repository.InsertOrdersParams{}
-	for _, item := range mapOrder {
-		if len(item.OrderItems) == 0 {
+	logger = logger.With().Str(constants.KEY_PROCESS, "create-order").Logger()
+	logger.Trace().Msg("preparing order args")
 			continue
 		}
 		insertOrderArgs = append(insertOrderArgs, repository.InsertOrdersParams{
@@ -360,7 +358,7 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	_, err = s.queries.WithTx(tx).InsertOrders(c, insertOrderArgs)
 	if err != nil {
 		err = fmt.Errorf("failed inserting order with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		returnOrderError(c, params, err)
 		return err
@@ -389,7 +387,7 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	_, err = s.queries.WithTx(tx).InsertOrderItem(c, insertOrderItemArgs)
 	if err != nil {
 		err = fmt.Errorf("failed inserting order items with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		returnOrderError(c, params, err)
 		return err
@@ -397,13 +395,13 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	logger.Info().Msg("inserted order items")
 	span.AddEvent("inserted order items")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "get orders").Logger()
-	logger.Info().Msg("getting orders")
+	logger = logger.With().Str(constants.KEY_PROCESS, "get orders").Logger()
+	logger.Trace().Msg("getting orders")
 	span.AddEvent("getting orders")
 	orders, err := s.queries.WithTx(tx).GetOrders(c, orderIds)
 	if err != nil {
 		err = fmt.Errorf("failed getting orders with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		returnOrderError(c, params, err)
 		return err
@@ -411,8 +409,8 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	logger.Info().Msg("got orders")
 	span.AddEvent("got orders")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "preparing order response").Logger()
-	logger.Info().Msg("preparing order response")
+	logger = logger.With().Str(constants.KEY_PROCESS, "preparing order response").Logger()
+	logger.Trace().Msg("preparing order response")
 	span.AddEvent("preparing order response")
 	mapResponseOrder := map[string]response.Order{}
 	for _, order := range orders {
@@ -424,7 +422,7 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 		orderResponse, err := order.Response()
 		if err != nil {
 			err = fmt.Errorf("failed getting orders with error=%w", err)
-			commonErrors.HandleError(err, span)
+			inOtel.RecordError(err, span)
 			logger.Error().Err(err).Msg(err.Error())
 			returnOrderError(c, params, err)
 			return err
@@ -434,13 +432,12 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 	logger.Info().Msg("prepared order response")
 	span.AddEvent("prepared order response")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "commit-transaction").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "commit-transaction").Logger()
 	span.AddEvent("committing transaction")
 	err = tx.Commit(c)
 	if err != nil {
 		err = fmt.Errorf("failed committing transaction with error=%w", err)
 		logger.Error().Err(err).Msg(err.Error())
-		commonErrors.HandleError(err, span)
 		var wg sync.WaitGroup
 		for _, param := range params {
 			wg.Add(1)
@@ -450,13 +447,15 @@ func (s OrderService) BatchCreateOrder(c context.Context, params []request.Creat
 			}()
 		}
 		wg.Wait()
+		inOtel.RecordError(err, span)
+		returnOrderError(c, params, err)
 		return err
 	}
 	logger.Info().Msg("committed transaction")
 	span.AddEvent("committed transaction")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "sending result").Logger()
-	logger.Info().Msg("sending result to the orders")
+	logger = logger.With().Str(constants.KEY_PROCESS, "sending result").Logger()
+	logger.Trace().Msg("sending result to the orders")
 	span.AddEvent("sending result to the orders")
 	for _, param := range params {
 		wg.Add(1)
@@ -484,8 +483,8 @@ func returnOrderError(c context.Context, params []request.CreateOrder, err error
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "OrderService-returnOrderResult").
-		Str(log.KEY_PROCESS, "returning order error").
+		Str(constants.KEY_TAG, "OrderService-returnOrderResult").
+		Str(constants.KEY_PROCESS, "returning order error").
 		Logger()
 
 	var wg sync.WaitGroup

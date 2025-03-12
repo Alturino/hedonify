@@ -8,8 +8,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/Alturino/ecommerce/internal/common/errors"
-	"github.com/Alturino/ecommerce/internal/common/otel"
+	"github.com/Alturino/ecommerce/internal/otel"
 )
 
 func WriteJsonResponse(
@@ -23,7 +22,7 @@ func WriteJsonResponse(
 
 	logger := zerolog.Ctx(c).With().Str("tag", "WriteJsonResponse").Logger()
 
-	w.Header().Add(KEY_HEADER_CONTENT_TYPE, HEADER_VALUE_APPLICATION_JSON)
+	w.Header().Add(KEY_HEADER_CONTENT_TYPE, VALUE_HEADER_APPLICATION_JSON)
 
 	var wg sync.WaitGroup
 	for k, v := range header {
@@ -41,10 +40,8 @@ func WriteJsonResponse(
 
 	err := json.NewEncoder(w).Encode(body)
 	if err != nil {
-
-		errors.HandleError(err, span)
+		otel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-
 		return
 	}
 }

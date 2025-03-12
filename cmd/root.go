@@ -6,25 +6,23 @@ import (
 	"os/signal"
 	"syscall"
 
+	zl "github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/Alturino/ecommerce/internal/common/constants"
-	"github.com/Alturino/ecommerce/internal/log"
+	"github.com/Alturino/ecommerce/internal/constants"
 )
 
 func Start() {
-	logger := log.InitLogger("/var/log/ecommerce.log").
+	logger := zl.Logger.
 		With().
-		Str(log.KEY_APP_NAME, constants.APP_MAIN_ECOMMERCE).
-		Str(log.KEY_TAG, "main Start").
+		Str(constants.KEY_APP_NAME, constants.APP_MAIN_ECOMMERCE).
+		Str(constants.KEY_TAG, "main Start").
 		Logger()
 
-	logger.Info().Msg("adding listener for SIGINT and SIGTERM")
+	logger.Trace().Msg("adding listener for SIGINT and SIGTERM")
 	c, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	logger.Info().Msg("added listener for SIGINT and SIGTERM")
-
-	c = logger.WithContext(c)
 
 	rootCmd := &cobra.Command{}
 	commands := []*cobra.Command{

@@ -11,13 +11,13 @@ import (
 	"go.opentelemetry.io/contrib/propagators/ot"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
-	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
-	inOtel "github.com/Alturino/ecommerce/internal/common/otel"
 	"github.com/Alturino/ecommerce/internal/config"
-	"github.com/Alturino/ecommerce/internal/log"
+	"github.com/Alturino/ecommerce/internal/constants"
 	"github.com/Alturino/ecommerce/internal/otel/metric"
-	inTrace "github.com/Alturino/ecommerce/internal/otel/trace"
+	"github.com/Alturino/ecommerce/internal/otel/trace"
 )
 
 type ShutdownFunc func(context.Context) error
@@ -37,50 +37,60 @@ func InitOtelSdk(
 	serviceName string,
 	config config.Otel,
 ) (shutdownFuncs []ShutdownFunc, err error) {
-	c, span := inOtel.Tracer.Start(c, "InitOtelSdk")
-	defer span.End()
+	logger := zerolog.Ctx(c).With().Str(constants.KEY_TAG, "main InitOtelSdk").Logger()
 
-	logger := zerolog.Ctx(c).With().Str(log.KEY_TAG, "main InitOtelSdk").Logger()
-
-	logger = logger.With().Str(log.KEY_PROCESS, "initializing otel propagator").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "initializing otel propagator").Logger()
 	logger.Info().Msg("initializing otel propagator")
 	propagator := newPropagator()
 	otel.SetTextMapPropagator(propagator)
 	logger.Info().Msg("initialized otel propagator")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "initializing otel tracerProvider").Logger()
-	logger.Info().Msg("initializing otel tracerProvider")
-	c = logger.WithContext(c)
-	tracerProvider, err := inTrace.InitTracerProvider(
+	res, err := resource.New(
 		c,
-		fmt.Sprintf("%s:%d", config.Host, config.Port),
-		serviceName,
+		resource.WithFromEnv(),
+		resource.WithProcess(),
+		resource.WithContainer(),
+		resource.WithTelemetrySDK(),
+		resource.WithHost(),
+		resource.WithOS(),
+		resource.WithProcessOwner(),
+		resource.WithAttributes(semconv.ServiceName(serviceName)),
 	)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel tracerProvider with error=%w", err)
-
-		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
+		return nil, err
+	}
 
+	logger = logger.With().Str(constants.KEY_PROCESS, "initializing otel tracerProvider").Logger()
+	logger.Info().Msg("initializing otel tracerProvider")
+	c = logger.WithContext(c)
+	tracerProvider, err := trace.InitTracerProvider(
+		c,
+		fmt.Sprintf("%s:%d", config.Host, config.Port),
+		serviceName,
+		res,
+	)
+	if err != nil {
+		err = fmt.Errorf("failed initializing otel tracerProvider with error=%w", err)
+		logger.Error().Err(err).Msg(err.Error())
 		return nil, err
 	}
 	otel.SetTracerProvider(tracerProvider)
 	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
 	logger.Info().Msg("initialized otel tracerProvider")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "initializing meterProvider").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "initializing meterProvider").Logger()
 	logger.Info().Msg("initializing meterProvider")
 	c = logger.WithContext(c)
 	meterProvider, err := metric.InitMetricProvider(
 		c,
 		fmt.Sprintf("%s:%d", config.Host, config.Port),
+		res,
 	)
 	if err != nil {
 		err = fmt.Errorf("failed initializing otel meterProvider with error=%w", err)
-
-		commonErrors.HandleError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-
 		return shutdownFuncs, err
 	}
 	otel.SetMeterProvider(meterProvider)
@@ -105,3 +115,5 @@ func ShutdownOtel(c context.Context, shutdownFuncs []ShutdownFunc) error {
 	wg.Wait()
 	return err
 }
+
+var Tracer = otel.Tracer(constants.APP_MAIN_ECOMMERCE)

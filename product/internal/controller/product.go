@@ -11,11 +11,11 @@ import (
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 
-	commonErrors "github.com/Alturino/ecommerce/internal/common/errors"
-	commonHttp "github.com/Alturino/ecommerce/internal/common/http"
-	"github.com/Alturino/ecommerce/internal/log"
+	inHttp "github.com/Alturino/ecommerce/internal/http"
+	"github.com/Alturino/ecommerce/internal/constants"
 	"github.com/Alturino/ecommerce/internal/middleware"
-	"github.com/Alturino/ecommerce/product/internal/common/otel"
+	inOtel "github.com/Alturino/ecommerce/internal/otel"
+	"github.com/Alturino/ecommerce/product/internal/otel"
 	"github.com/Alturino/ecommerce/product/internal/service"
 	"github.com/Alturino/ecommerce/product/pkg/request"
 )
@@ -45,17 +45,17 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "ProductController InsertProduct").
+		Str(constants.KEY_TAG, "ProductController InsertProduct").
 		Logger()
 
-	logger = logger.With().Str(log.KEY_PROCESS, "decoding request body").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "decoding request body").Logger()
 	logger.Info().Msg("decoding request body")
 	reqBody := request.Product{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -64,7 +64,7 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 	}
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "validating.request_body").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "validating.request_body").Logger()
 
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
@@ -73,9 +73,9 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 	logger.Info().Msg("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -84,16 +84,16 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 	}
 	logger.Info().Msg("validated request body")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "inserting product").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "inserting product").Logger()
 	logger.Info().Msg("inserting product")
 	c = logger.WithContext(c)
 	product, err := p.service.InsertProduct(c, reqBody)
 	if err != nil {
 		err = fmt.Errorf("failed inserting product with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -102,7 +102,7 @@ func (p ProductController) InsertProduct(w http.ResponseWriter, r *http.Request)
 	}
 	logger.Info().Msg("inserted product")
 
-	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "successfully inserted product",
@@ -118,30 +118,30 @@ func (ctrl ProductController) GetProducts(w http.ResponseWriter, r *http.Request
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "ProductController FindProducts").
+		Str(constants.KEY_TAG, "ProductController FindProducts").
 		Logger()
 
-	logger = logger.With().Str(log.KEY_PROCESS, "get products").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "get products").Logger()
 	logger.Info().Msg("get products")
 	span.AddEvent("get products")
 	c = logger.WithContext(c)
 	products, err := ctrl.service.GetProducts(c)
 	if err != nil {
 		err = fmt.Errorf("failed get products with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
 		})
 		return
 	}
-	logger = logger.With().Any(log.KEY_PRODUCTS, products).Logger()
+	logger = logger.With().Any(constants.KEY_PRODUCTS, products).Logger()
 	span.AddEvent("got products")
 	logger.Info().Msg("got products")
 
-	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "products found",
@@ -157,45 +157,45 @@ func (p ProductController) FindProductById(w http.ResponseWriter, r *http.Reques
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "ProductController FindProductById").
+		Str(constants.KEY_TAG, "ProductController FindProductById").
 		Logger()
 
-	logger = logger.With().Str(log.KEY_PROCESS, "get product id").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "get product id").Logger()
 	logger.Info().Msg("get product id")
 	id, err := uuid.Parse(r.PathValue("productId"))
 	if err != nil {
 		err = fmt.Errorf("failed get product id with error=%w", err)
 
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 
 		return
 	}
-	logger = logger.With().Str(log.KEY_PRODUCT_ID, id.String()).Logger()
-	span.SetAttributes(attribute.String(log.KEY_PRODUCT_ID, id.String()))
+	logger = logger.With().Str(constants.KEY_PRODUCT_ID, id.String()).Logger()
+	span.SetAttributes(attribute.String(constants.KEY_PRODUCT_ID, id.String()))
 	logger.Info().Msgf("got product id=%s", id.String())
 
-	logger = logger.With().Str(log.KEY_PROCESS, "finding product").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "finding product").Logger()
 	logger.Info().Msg("finding product")
 	c = logger.WithContext(c)
 	product, err := p.service.FindProductById(c, id)
 	if err != nil {
 		err = fmt.Errorf("failed finding product with id=%s with error=%w", id.String(), err)
 
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
 		})
 		return
 	}
-	logger = logger.With().Any(log.KEY_PRODUCT, product).Logger()
+	logger = logger.With().Any(constants.KEY_PRODUCT, product).Logger()
 	logger.Info().Msgf("found product id=%s", id.String())
 
-	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    fmt.Sprintf("product id=%s found", id.String()),
@@ -211,36 +211,36 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "ProductController RemoveProduct").
+		Str(constants.KEY_TAG, "ProductController RemoveProduct").
 		Logger()
 
-	logger = logger.With().Str(log.KEY_PROCESS, "getting pathvalue productId").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "getting pathvalue productId").Logger()
 	logger.Info().Msg("getting pathvalue productId")
 	id, err := uuid.Parse(r.PathValue("productId"))
 	if err != nil {
 		err = fmt.Errorf("failed getting pathvalue productId with error=%w", err)
 
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
 		})
 		return
 	}
-	logger = logger.With().Str(log.KEY_PRODUCT_ID, id.String()).Logger()
-	span.SetAttributes(attribute.String(log.KEY_PRODUCT_ID, id.String()))
+	logger = logger.With().Str(constants.KEY_PRODUCT_ID, id.String()).Logger()
+	span.SetAttributes(attribute.String(constants.KEY_PRODUCT_ID, id.String()))
 	logger.Info().Msgf("got pathvalue productId=%s", id.String())
 
 	logger.Info().Msg("decoding request body")
 	reqBody := request.Product{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -249,13 +249,13 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 	}
 
 	span.SetAttributes(
-		attribute.String(log.KEY_PRODUCT_NAME, reqBody.Name),
-		attribute.String(log.KEY_PRODUCT_PRICE, reqBody.Price.String()),
-		attribute.Int(log.KEY_PRODUCT_QUANTITY, reqBody.Quantity),
+		attribute.String(constants.KEY_PRODUCT_NAME, reqBody.Name),
+		attribute.String(constants.KEY_PRODUCT_PRICE, reqBody.Price.String()),
+		attribute.Int(constants.KEY_PRODUCT_QUANTITY, reqBody.Quantity),
 	)
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "validating.request_body").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "validating.request_body").Logger()
 
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
@@ -264,9 +264,9 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 	logger.Info().Msg("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -275,16 +275,16 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 	}
 	logger.Info().Msg("validated request body")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "remove product").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "remove product").Logger()
 	logger.Info().Msg("remove product")
 	product, err := p.service.RemoveProduct(c, id)
 	if err != nil {
 		err = fmt.Errorf("failed remove product with error=%w", err)
 
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -293,7 +293,7 @@ func (p ProductController) RemoveProduct(w http.ResponseWriter, r *http.Request)
 	}
 	logger.Info().Msg("removed product")
 
-	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "successfully inserted product",
@@ -309,34 +309,34 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 
 	logger := zerolog.Ctx(c).
 		With().
-		Str(log.KEY_TAG, "ProductController UpdateProduct").
+		Str(constants.KEY_TAG, "ProductController UpdateProduct").
 		Logger()
 
-	logger = logger.With().Str(log.KEY_PROCESS, "getting pathValue productId").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "getting pathValue productId").Logger()
 	logger.Info().Msg("getting pathValue productId")
 	id, err := uuid.Parse(r.PathValue("productId"))
 	if err != nil {
 		err = fmt.Errorf("failed getting pathValue productId with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
 		})
 		return
 	}
-	logger = logger.With().Str(log.KEY_PRODUCT_ID, id.String()).Logger()
+	logger = logger.With().Str(constants.KEY_PRODUCT_ID, id.String()).Logger()
 	logger.Info().Msgf("got pathValue productId=%s", id.String())
 
-	logger = logger.With().Str(log.KEY_PROCESS, "decoding request body").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "decoding request body").Logger()
 	logger.Info().Msg("decoding request body")
 	reqBody := request.Product{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -346,7 +346,7 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 
 	logger.Info().Msg("decoded request body")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "validating.request_body").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "validating.request_body").Logger()
 
 	logger.Info().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
@@ -355,9 +355,9 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 	logger.Info().Msg("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -366,14 +366,14 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 	}
 	logger.Info().Msg("validated request body")
 
-	logger = logger.With().Str(log.KEY_PROCESS, "updating product").Logger()
+	logger = logger.With().Str(constants.KEY_PROCESS, "updating product").Logger()
 	logger.Info().Msg("updating product")
 	product, err := p.service.UpdateProduct(c, id, reqBody)
 	if err != nil {
 		err = fmt.Errorf("failed updating product with error=%w", err)
-		commonErrors.HandleError(err, span)
+		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
-		commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "failed",
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
@@ -382,7 +382,7 @@ func (p ProductController) UpdateProduct(w http.ResponseWriter, r *http.Request)
 	}
 	logger.Info().Msg("updated product")
 
-	commonHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
+	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
 		"message":    "successfully updated product",
