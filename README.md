@@ -274,8 +274,35 @@ To ensure observability, we utilize both logging and tracing mechanisms. Logs ar
 
 ```bash
 cd k6
-npm run build
-k6 run ./dist/src/orderCreation.js -v
+docker compose up --build -d
+# wait for all containers to be running
+cat seed/*.seed.sql | docker exec -i ${POSTGRES_CONTAINER} psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -f- # seed database
+go install go.k6.io/xk6/cmd/xk6@latest # install xk6 to run k6 with typescript
+xk6 build --with github.com/grafana/xk6-ts # install xk6-ts
+./k6 run -v ./dist/src/orderCreation.ts
+```
+
+- To verify the load test results
+
+```sql
+-- valid if it returns is_balanced true
+SELECT
+    oi.product_id,
+    p.quantity AS available_quantity,
+    sum(oi.quantity) AS ordered_quantity,
+    1000 - sum(oi.quantity) = p.quantity AS is_balanced
+FROM orders AS o
+INNER JOIN order_items AS oi ON o.id = oi.order_id
+INNER JOIN products AS p ON oi.product_id = p.id
+GROUP BY p.id, oi.product_id;
+
+-- valid if it returns no rows
+SELECT o.id
+FROM orders AS o
+LEFT JOIN order_items AS oi ON o.id = oi.order_id
+WHERE oi.order_id IS null AND oi.quantity = 0
+GROUP BY o.id;
+
 ```
 
 ## Things to Improve
