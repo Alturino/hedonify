@@ -20,11 +20,11 @@ export const options = {
 };
 
 const users = new SharedArray("users", () => {
-  return JSON.parse(open("./users.json"));
+  return JSON.parse(open("../seed/users.seed.json"));
 });
 
 const products = new SharedArray("products", () => {
-  return JSON.parse(open("./products.json"));
+  return JSON.parse(open("../seed/products.seed.json"));
 });
 
 const counterOrderSuccess = new Counter("order_success");
