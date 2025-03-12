@@ -6,8 +6,6 @@ LABEL authors="alturino"
 WORKDIR /usr/app/ecommerce/
 
 COPY ["go.mod", "go.sum", "./"]
-RUN go mod download
-
 COPY main.go  ./
 COPY ./internal/ ./internal/
 COPY ./cmd/ ./cmd/
@@ -17,8 +15,9 @@ COPY ./notification/ ./notification/
 COPY ./order/ ./order/
 COPY ./product/ ./product/
 COPY ./user/ ./user/
+COPY ./vendor/ ./vendor/
 
-RUN go build main.go
+RUN go build -mod vendor main.go
 
 FROM alpine:3.20.3 AS production
 RUN apk add --no-cache dumb-init
