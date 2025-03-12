@@ -1,5 +1,6 @@
 import http from "k6/http";
-import { check, fail } from "k6";
+import { check, fail, randomSeed } from "k6";
+import { Options } from "k6/options";
 import { SharedArray } from "k6/data";
 import { Counter } from "k6/metrics";
 
@@ -8,7 +9,7 @@ const maxQuantity = 10;
 const minOrderItems = 1;
 const maxOrderItems = 5;
 
-export const options = {
+export const options: Options = {
   scenarios: {
     order_creations: {
       executor: "per-vu-iterations",
@@ -31,6 +32,8 @@ const counterOrderSuccess = new Counter("order_success");
 const counterOrderFail = new Counter("order_fail");
 
 export default function () {
+  randomSeed(999_999_999);
+
   // randomize user
   const userRandomIndex = Math.floor(Math.random() * users.length);
   const user = users[userRandomIndex];
