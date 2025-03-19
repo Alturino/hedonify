@@ -1,4 +1,6 @@
+import sql from "k6/x/sql";
 import http from "k6/http";
+import driver from "k6/x/sql/driver/postgres";
 import { check, fail, randomSeed } from "k6";
 import { Options } from "k6/options";
 import { SharedArray } from "k6/data";
@@ -30,6 +32,22 @@ const products = new SharedArray("products", () => {
 
 const counterOrderSuccess = new Counter("order_success");
 const counterOrderFail = new Counter("order_fail");
+
+const db = sql.open(
+  driver,
+  "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable",
+);
+const productSeedDb = open("../seed/products.seed.sql");
+const userSeedDb = open("../seed/users.seed.sql");
+
+export function setup() {
+  db.exec(productSeedDb);
+  db.exec(userSeedDb);
+}
+
+export function teardown() {
+  db.close();
+}
 
 export default function () {
   randomSeed(999_999_999);
