@@ -28,6 +28,7 @@ const (
 	KEY_ORDERS                     = "orders"
 	KEY_ORDER_AND_ORDER_ITEMS      = "order_and_order_items"
 	KEY_ORDER_ID                   = "order_id"
+	KEY_ORDER_IDS                  = "order_ids"
 	KEY_ORDER_ITEM                 = "order_item"
 	KEY_ORDER_ITEMS                = "order_items"
 	KEY_ORDER_ITEMS_MERGED         = "order_items_merged"
@@ -66,4 +67,7 @@ const (
 	KEY_TOKEN                      = "token"
 	KEY_USER                       = "user"
 	KEY_USER_ID                    = "user_id"
+	KEY_CARTS                      = "carts"
+	KEY_TRACE_ID                   = "trace_id"
+	KEY_SPAN_ID                    = "span_id"
 )

@@ -12,13 +12,11 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 
 	"github.com/Alturino/ecommerce/internal/config"
 	"github.com/Alturino/ecommerce/internal/constants"
 	"github.com/Alturino/ecommerce/internal/infra"
 	"github.com/Alturino/ecommerce/internal/log"
-	"github.com/Alturino/ecommerce/internal/middleware"
 	inOtel "github.com/Alturino/ecommerce/internal/otel"
 	"github.com/Alturino/ecommerce/internal/repository"
 	"github.com/Alturino/ecommerce/order/internal/controller"
@@ -43,11 +41,6 @@ func RunOrderService(c context.Context) {
 	logger.Info().Msg("initializing router")
 	mux := mux.NewRouter()
 	mux.Handle("/metrics", promhttp.Handler())
-	mux.Use(
-		otelmux.Middleware(constants.APP_ORDER_SERVICE),
-		middleware.Logging,
-		middleware.RecoverPanic,
-	)
 	logger.Info().Msg("initialized router")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "initializing otel sdk").Logger()
