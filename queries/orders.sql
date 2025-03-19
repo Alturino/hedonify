@@ -42,9 +42,9 @@ insert into orders (id, user_id, created_at, updated_at) values (
 );
 
 -- name: InsertOrderItem :copyfrom
-insert into order_items (order_id, product_id, quantity, price) values (
-    $1, $2, $3, $4
-);
+insert into order_items (
+    id, order_id, product_id, quantity, price, created_at, updated_at
+) values ($1, $2, $3, $4, $5, $6, $7);
 
 -- name: GetOrders :many
 select

@@ -52,7 +52,7 @@ func (q *Queries) FindProductById(ctx context.Context, id uuid.UUID) (Product, e
 
 const findProductByIdLock = `-- name: FindProductByIdLock :one
 select id, name, price, quantity, created_at, updated_at from products
-where id = $1 for share
+where id = $1 for update skip locked
 `
 
 func (q *Queries) FindProductByIdLock(ctx context.Context, id uuid.UUID) (Product, error) {

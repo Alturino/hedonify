@@ -65,10 +65,13 @@ func (r *iteratorForInsertOrderItem) Next() bool {
 
 func (r iteratorForInsertOrderItem) Values() ([]interface{}, error) {
 	return []interface{}{
+		r.rows[0].ID,
 		r.rows[0].OrderID,
 		r.rows[0].ProductID,
 		r.rows[0].Quantity,
 		r.rows[0].Price,
+		r.rows[0].CreatedAt,
+		r.rows[0].UpdatedAt,
 	}, nil
 }
 
@@ -77,7 +80,7 @@ func (r iteratorForInsertOrderItem) Err() error {
 }
 
 func (q *Queries) InsertOrderItem(ctx context.Context, arg []InsertOrderItemParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"order_items"}, []string{"order_id", "product_id", "quantity", "price"}, &iteratorForInsertOrderItem{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"order_items"}, []string{"id", "order_id", "product_id", "quantity", "price", "created_at", "updated_at"}, &iteratorForInsertOrderItem{rows: arg})
 }
 
 // iteratorForInsertOrders implements pgx.CopyFromSource.

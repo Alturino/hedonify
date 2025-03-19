@@ -278,10 +278,13 @@ func (q *Queries) InsertOrder(ctx context.Context, arg InsertOrderParams) (Order
 }
 
 type InsertOrderItemParams struct {
-	OrderID   uuid.UUID      `db:"order_id" json:"order_id"`
-	ProductID uuid.UUID      `db:"product_id" json:"product_id"`
-	Quantity  int32          `db:"quantity" json:"quantity"`
-	Price     pgtype.Numeric `db:"price" json:"price"`
+	ID        uuid.UUID          `db:"id" json:"id"`
+	OrderID   uuid.UUID          `db:"order_id" json:"order_id"`
+	ProductID uuid.UUID          `db:"product_id" json:"product_id"`
+	Quantity  int32              `db:"quantity" json:"quantity"`
+	Price     pgtype.Numeric     `db:"price" json:"price"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type InsertOrdersParams struct {
