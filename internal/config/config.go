@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/fsnotify/fsnotify"
 	zl "github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 
@@ -55,36 +56,38 @@ var (
 )
 
 func Get(c context.Context, filename string) Config {
-	once.Do(func() {
-		logger := zl.Logger.
-			With().
-			Str(constants.KEY_TAG, "main InitConfig").
-			Str(constants.KEY_PROCESS, "init config").
-			Str("filename", filename).
-			Logger()
+	logger := zl.Logger.
+		With().
+		Str(constants.KEY_TAG, "main InitConfig").
+		Str(constants.KEY_PROCESS, "init config").
+		Str("filename", filename).
+		Logger()
 
-		viper.SetConfigName(filename)
-		viper.AddConfigPath("./env/")
-		viper.SetConfigType("yaml")
-		viper.AutomaticEnv()
-
-		logger = logger.With().Str(constants.KEY_PROCESS, "reading config").Logger()
-		logger.Trace().Msg("reading config")
-		err := viper.ReadInConfig()
-		if err != nil {
-			err = fmt.Errorf("error when reading config with error=%w", err)
-			logger.Fatal().Err(err).Msg(err.Error())
-		}
-		logger.Info().Msg("read config")
-
-		logger = logger.With().Str(constants.KEY_PROCESS, "unmarshaling config").Logger()
-		logger.Trace().Msg("unmarshaling config")
-		err = viper.Unmarshal(&config)
-		if err != nil {
-			err = fmt.Errorf("error unmarshaling config with error=%w", err)
-			logger.Fatal().Err(err).Msg(err.Error())
-		}
-		logger.Info().Any(constants.KEY_CONFIG, config).Msg("marshalled config")
+	viper.SetConfigName(filename)
+	viper.AddConfigPath("./env/")
+	viper.SetConfigType("yaml")
+	viper.AutomaticEnv()
+	viper.WatchConfig()
+	viper.OnConfigChange(func(in fsnotify.Event) {
+		Get(c, filename)
 	})
+
+	logger = logger.With().Str(constants.KEY_PROCESS, "reading config").Logger()
+	logger.Trace().Msg("reading config")
+	err := viper.ReadInConfig()
+	if err != nil {
+		err = fmt.Errorf("error when reading config with error=%w", err)
+		logger.Fatal().Err(err).Msg(err.Error())
+	}
+	logger.Info().Msg("read config")
+
+	logger = logger.With().Str(constants.KEY_PROCESS, "unmarshaling config").Logger()
+	logger.Trace().Msg("unmarshaling config")
+	err = viper.Unmarshal(&config)
+	if err != nil {
+		err = fmt.Errorf("error unmarshaling config with error=%w", err)
+		logger.Fatal().Err(err).Msg(err.Error())
+	}
+	logger.Info().Any(constants.KEY_CONFIG, config).Msg("marshalled config")
 	return config
 }
