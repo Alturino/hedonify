@@ -31,21 +31,21 @@ scrape_configs:
             line: output
             message: message
             process: process
-            request: request
             request_id: request_id
-            stream: stream
             tag: tag
             timestamp: timestamp
-            user_id:
+            user_id: user_id
+            span_id: span_id
+            trace_id: trace_id
       - labels:
           app:
           caller:
           level:
           message:
           process:
-          request:
           request_id:
-          stream:
           tag:
           timestamp:
           user_id:
+          span_id:
+          trace_id:
