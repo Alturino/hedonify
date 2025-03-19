@@ -1,7 +1,6 @@
 package log
 
 import (
-	"context"
 	"os"
 	"sync"
 	"time"
@@ -13,16 +12,6 @@ import (
 	"github.com/Alturino/ecommerce/internal/config"
 	"github.com/Alturino/ecommerce/internal/constants"
 )
-
-type requestId struct{}
-
-func RequestIDFromContext(c context.Context) string {
-	return c.Value(requestId{}).(string)
-}
-
-func AttachRequestIDToContext(c context.Context, h string) context.Context {
-	return context.WithValue(c, requestId{}, h)
-}
 
 var (
 	once   sync.Once
