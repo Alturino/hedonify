@@ -37,7 +37,11 @@ func InitOtelSdk(
 	serviceName string,
 	config config.Otel,
 ) (shutdownFuncs []ShutdownFunc, err error) {
-	logger := zerolog.Ctx(c).With().Str(constants.KEY_TAG, "main InitOtelSdk").Logger()
+	logger := zerolog.Ctx(c).
+		With().
+		Ctx(c).
+		Str(constants.KEY_TAG, "main InitOtelSdk").
+		Logger()
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "initializing otel propagator").Logger()
 	logger.Info().Msg("initializing otel propagator")

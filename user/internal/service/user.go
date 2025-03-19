@@ -51,13 +51,14 @@ func (u UserService) Login(
 	cacheKey := fmt.Sprintf(cache.LOGIN_USER, param.Email)
 	logger := zerolog.Ctx(c).
 		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "UserService Login").
 		Str(constants.KEY_EMAIL, param.Email).
 		Str(constants.KEY_CACHE_KEY, cacheKey).
 		Logger()
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "getting token from cache").Logger()
-	logger.Info().Msg("getting token from cache")
+	logger.Trace().Msg("getting token from cache")
 	span.AddEvent("getting token from cache")
 	signedToken, err := u.cache.JSONGet(c, cacheKey).Result()
 	if (err != nil || errors.Is(err, redis.Nil)) || signedToken == "" {
@@ -66,7 +67,7 @@ func (u UserService) Login(
 		span.AddEvent("failed getting token from cache")
 
 		logger = logger.With().Str(constants.KEY_PROCESS, "finding user by email").Logger()
-		logger.Info().Msg("finding user by email")
+		logger.Trace().Msg("finding user by email")
 		span.AddEvent("finding user by email")
 		user, err := u.queries.FindByEmail(c, param.Email)
 		if err != nil {
@@ -82,7 +83,7 @@ func (u UserService) Login(
 		logger = logger.With().
 			Str(constants.KEY_PROCESS, "verifying hashed password with password").
 			Logger()
-		logger.Info().Msg("verifying hashed password with password")
+		logger.Trace().Msg("verifying hashed password with password")
 		span.AddEvent("verifying hashed password with password")
 		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(param.Password))
 		if err != nil {
@@ -96,9 +97,9 @@ func (u UserService) Login(
 		span.AddEvent("verified hashed password with password")
 
 		logger = logger.With().Str(constants.KEY_PROCESS, "creating login token").Logger()
-		span.AddEvent("creating login token")
-		logger.Info().Msg("creating login token")
+		logger.Trace().Msg("creating login token")
 		tokenCreationTime := time.Now()
+		span.AddEvent("creating login token")
 		token := jwt.NewWithClaims(
 			jwt.SigningMethodHS256,
 			jwt.RegisteredClaims{
@@ -114,7 +115,7 @@ func (u UserService) Login(
 		span.AddEvent("created login token")
 
 		logger = logger.With().Str(constants.KEY_PROCESS, "signing token").Logger()
-		logger.Info().Msg("signing token")
+		logger.Trace().Msg("signing token")
 		span.AddEvent("signing token")
 		signedToken, err = token.SignedString([]byte(u.config.SecretKey))
 		if err != nil {
@@ -128,7 +129,7 @@ func (u UserService) Login(
 		logger.Info().Msg("signed token")
 
 		logger = logger.With().Str(constants.KEY_PROCESS, "inserting token to cache").Logger()
-		logger.Info().Msg("inserting token to cache")
+		logger.Trace().Msg("inserting token to cache")
 		span.AddEvent("inserting token to cache")
 		err = u.cache.SetEx(c, cacheKey, signedToken, 25*time.Minute).Err()
 		if err != nil {
@@ -137,8 +138,8 @@ func (u UserService) Login(
 			logger.Error().Err(err).Msg(err.Error())
 			return "", err
 		}
-		logger.Info().Msg("inserted token to cache")
 		span.AddEvent("inserted token to cache")
+		logger.Info().Msg("inserted token to cache")
 	}
 	logger.Info().RawJSON(constants.KEY_JSON_CACHE, []byte(signedToken)).Msg("got token from cache")
 	span.AddEvent(
@@ -158,12 +159,13 @@ func (svc UserService) Register(
 
 	logger := zerolog.Ctx(c).
 		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "UserService Register").
 		Str(constants.KEY_EMAIL, param.Email).
 		Logger()
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "checking if email exists").Logger()
-	logger.Info().Msg("checking if email exists")
+	logger.Trace().Msg("checking if email exists")
 	span.AddEvent("checking if email exists")
 	_, err := svc.queries.FindByEmail(c, param.Email)
 	if err == nil {
@@ -173,11 +175,11 @@ func (svc UserService) Register(
 		return repository.User{}, err
 	}
 	span.AddEvent("checked email not exist")
-	logger.Info().Msg("checked email not exist")
+	logger.Debug().Msg("checked email not exist")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "hashing password").Logger()
 	span.AddEvent("hashing password")
-	logger.Info().Msg("hashing password")
+	logger.Trace().Msg("hashing password")
 	hashed, err := bcrypt.GenerateFromPassword([]byte(param.Password), bcrypt.DefaultCost)
 	if err != nil {
 		err = errors.Join(err, inErrors.ErrFailedHashToken)
@@ -187,10 +189,10 @@ func (svc UserService) Register(
 		return repository.User{}, err
 	}
 	span.AddEvent("hashed password")
-	logger.Info().Msg("hashed password")
+	logger.Debug().Msg("hashed password")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "inserting user to database").Logger()
-	logger.Info().Msg("inserting user to database")
+	logger.Trace().Msg("inserting user to database")
 	span.AddEvent("inserting user to database")
 	user, err := svc.queries.InsertUser(c, repository.InsertUserParams{
 		Username: param.Username,
@@ -213,12 +215,12 @@ func (svc UserService) Register(
 		logger.Error().Err(err).Msg(err.Error())
 		return repository.User{}, err
 	}
-	logger.Info().Msg("inserted user to database")
 	span.AddEvent("inserted user to database")
+	logger.Info().Msg("inserted user to database")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "inserting user to cache").Logger()
+	logger.Trace().Msg("inserting user to cache")
 	span.AddEvent("inserting user to cache")
-	logger.Info().Msg("inserting user to cache")
 	err = svc.cache.JSONSet(c, fmt.Sprintf(cache.KEY_USER, user.ID.String()), "$", user).Err()
 	if err != nil {
 		err = fmt.Errorf("failed inserting user to cache with error=%w", err)
@@ -226,9 +228,10 @@ func (svc UserService) Register(
 		logger.Error().Err(err).Msg(err.Error())
 		return user, nil
 	}
-	logger.Info().Msg("inserted user to cache")
 	span.AddEvent("inserted user to cache")
+	logger.Info().Msg("inserted user to cache")
 
+	logger.Info().Msg("registered user")
 	return user, nil
 }
 
@@ -240,23 +243,23 @@ func (svc UserService) FindUserById(
 	defer span.End()
 
 	cacheKey := fmt.Sprintf(cache.KEY_USER, param.ID.String())
-
 	logger := zerolog.Ctx(c).
 		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "UserService FindUserById").
 		Str(constants.KEY_CACHE_KEY, cacheKey).
 		Logger()
 
-	logger = logger.With().Str(constants.KEY_PROCESS, "finding user by id in cache").Logger()
-	logger.Info().Msg("finding user by id in cache")
+	logger = logger.With().Str(constants.KEY_PROCESS, "find user").Logger()
+	logger.Trace().Msg("finding user by id in cache")
 	jsonCache, err := svc.cache.JSONGet(c, cacheKey).Result()
-	if (err != nil || errors.Is(err, redis.Nil)) || jsonCache == "" {
+	if err != nil || err == redis.Nil || errors.Is(err, redis.Nil) || jsonCache == "" {
 		err = fmt.Errorf("failed finding user by id from cache with error=%w", err)
 		inOtel.RecordError(err, span)
-		logger.Error().Err(err).Msg(err.Error())
+		logger.Info().Err(err).Msg(err.Error())
 
-		logger = logger.With().Str(constants.KEY_PROCESS, "finding user by id in database").Logger()
-		logger.Info().Msg("finding user by id in database")
+		logger.Trace().Msg("finding user by id in database")
+		span.AddEvent("finding user by id in database")
 		user, err := svc.queries.FindById(c, param.ID)
 		if err != nil {
 			err = fmt.Errorf("failed finding user from database with error=%w", err)
@@ -264,11 +267,12 @@ func (svc UserService) FindUserById(
 			logger.Error().Err(err).Msg(err.Error())
 			return repository.User{}, err
 		}
+		span.AddEvent("found user in database")
 		logger = logger.With().Any(constants.KEY_USER, user).Logger()
-		logger.Info().Msg("found user in database")
+		logger.Debug().Msg("found user in database")
 
 		logger.With().Str(constants.KEY_PROCESS, "cache user").Logger()
-		logger.Info().Msg("inserting user to cache")
+		logger.Trace().Msg("inserting user to cache")
 		span.AddEvent("inserting user to cache")
 		err = svc.cache.JSONSet(c, cacheKey, "$", user).Err()
 		if err != nil {
@@ -277,16 +281,17 @@ func (svc UserService) FindUserById(
 			logger.Error().Err(err).Msg(err.Error())
 			return repository.User{}, err
 		}
-		logger.Info().Msg("inserted user to cache")
 		span.AddEvent("inserted user to cache")
+		logger.Debug().Msg("inserted user to cache")
 
+		logger.Info().Msg("found user in database and inserted to cache")
 		return user, err
 	}
 	logger = logger.With().RawJSON(constants.KEY_JSON_CACHE, []byte(jsonCache)).Logger()
-	logger.Info().Msg("found user by id in cache")
+	logger.Debug().Msg("found user by id in cache")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "unmarshaling user from cache").Logger()
-	logger.Info().Msg("unmarshaling user from cache")
+	logger.Trace().Msg("unmarshaling user from cache")
 	user := repository.User{}
 	err = json.Unmarshal([]byte(jsonCache), &user)
 	if err != nil {
@@ -296,7 +301,8 @@ func (svc UserService) FindUserById(
 		return repository.User{}, err
 	}
 	logger = logger.With().Any(constants.KEY_USER, user).Logger()
-	logger.Info().Msg("unmarshaled user from cache")
+	logger.Debug().Msg("unmarshaled user from cache")
 
+	logger.Info().Msg("found user by id in cache")
 	return user, nil
 }

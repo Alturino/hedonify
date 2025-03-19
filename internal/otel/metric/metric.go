@@ -18,8 +18,9 @@ func InitMetricProvider(
 	endpoint string,
 	res *resource.Resource,
 ) (*metric.MeterProvider, error) {
-	logger := zerolog.Ctx(c).
+		logger := zerolog.Ctx(c).
 		With().
+    Ctx(c).
 		Str(constants.KEY_TAG, "main InitMetricProvider").
 		Logger()
 

@@ -19,8 +19,9 @@ func InitTracerProvider(
 	endpoint, serviceName string,
 	res *resource.Resource,
 ) (*trace.TracerProvider, error) {
-	logger := zerolog.Ctx(c).
+		logger := zerolog.Ctx(c).
 		With().
+    Ctx(c).
 		Str(constants.KEY_TAG, "main InitTracerProvider").
 		Logger()
 

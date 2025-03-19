@@ -29,6 +29,7 @@ func NewCacheClient(
 	cacheOnce.Do(func() {
 		logger := zerolog.Ctx(c).
 			With().
+			Ctx(c).
 			Str(constants.KEY_TAG, "main NewCacheClient").
 			Logger()
 

@@ -20,21 +20,22 @@ func VerifyToken(c context.Context, token string) (*jwt.Token, error) {
 
 	logger := zerolog.Ctx(c).
 		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "VerifyToken").
 		Logger()
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "initializing config").Logger()
-	logger.Info().Msg("initializing config")
+	logger.Trace().Msg("initializing config")
 	c = logger.WithContext(c)
-	config := config.Get(c, constants.APP_USER_SERVICE)
-	logger.Info().Msg("initialized config")
+	cfg := config.Get(c, constants.APP_USER_SERVICE)
+	logger.Trace().Msg("initialized config")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "parsing claims").Logger()
-	logger.Info().Msg("parsing claims")
+	logger.Trace().Msg("parsing claims")
 	jwtToken, err := jwt.ParseWithClaims(token,
 		&jwt.RegisteredClaims{},
 		func(t *jwt.Token) (interface{}, error) {
-			return []byte(config.SecretKey), nil
+			return []byte(cfg.SecretKey), nil
 		},
 		jwt.WithAudience(constants.AUDIENCE_USER),
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}),
@@ -52,7 +53,7 @@ func VerifyToken(c context.Context, token string) (*jwt.Token, error) {
 	logger.Info().Msg("parsed claims")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "validating token").Logger()
-	logger.Info().Msg("validating token")
+	logger.Trace().Msg("validating token")
 	if !jwtToken.Valid {
 		err = fmt.Errorf("failed validating token with error=%w", errors.ErrTokenInvalid)
 		otel.RecordError(err, span)
@@ -81,7 +82,8 @@ func UserIdFromJwtToken(c context.Context) (uuid.UUID, error) {
 	logger := zerolog.Ctx(c).With().Logger()
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "getting userId from jwtToken").Logger()
-	logger.Info().Msg("getting jwtToken from context")
+	logger.Trace().Msg("getting jwtToken from context")
+	span.AddEvent("getting jwtToken from context")
 	jwt := JwtTokenFromContext(c)
 	subject, err := jwt.Claims.GetSubject()
 	if err != nil {
@@ -90,9 +92,11 @@ func UserIdFromJwtToken(c context.Context) (uuid.UUID, error) {
 		logger.Error().Err(err).Msg(err.Error())
 		return uuid.Nil, err
 	}
+	span.AddEvent("got subject from jwtToken")
 	logger.Info().Msg("got subject from jwtToken")
 
-	logger.Info().Msg("parsing subject")
+	logger.Trace().Msg("parsing subject")
+	span.AddEvent("parsing subject")
 	userId, err := uuid.Parse(subject)
 	if err != nil {
 		err = fmt.Errorf("failed parsing subject=%s with error=%w", subject, err)
@@ -100,6 +104,7 @@ func UserIdFromJwtToken(c context.Context) (uuid.UUID, error) {
 		logger.Error().Err(err).Msg(err.Error())
 		return uuid.Nil, err
 	}
+	span.AddEvent("parsed subject as userId")
 	logger = logger.With().Str(constants.KEY_USER_ID, userId.String()).Logger()
 	logger.Info().Msg("parsed subject as userId")
 

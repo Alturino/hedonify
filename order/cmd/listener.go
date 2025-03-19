@@ -46,23 +46,22 @@ func (wrk OrderWorker) StartWorker(c context.Context, wg *sync.WaitGroup) {
 			if len(batch) == 0 {
 				continue
 			}
-			requestID := uuid.NewString()
-			logger = logger.With().Str(constants.KEY_REQUEST_ID, requestID).Logger()
-			logger.Info().Msg("start batch create order")
-			c = logger.WithContext(c)
-			c = log.AttachRequestIDToContext(c, requestID)
-			err := wrk.svc.BatchCreateOrder(c, batch)
+			reqId := uuid.NewString()
+			logger = logger.With().Str(constants.KEY_REQUEST_ID, reqId).Logger()
+			logger.Trace().Msg("start batch create order")
+			c = log.AttachRequestIDToContext(logger.WithContext(c), reqId)
+			resOrder, err := wrk.svc.BatchCreateOrder(c, batch)
 			if err != nil {
 				err = fmt.Errorf("failed batch create order with error=%w", err)
 				logger.Error().Err(err).Msg(err.Error())
 				continue
 			}
-			logger.Info().Msg("batch create order completed")
+			logger.Info().Any(constants.KEY_ORDERS, resOrder).Msg("batch create order completed")
 			batch = batch[:0]
 		case order := <-wrk.queue:
 			logger = logger.With().Any(constants.KEY_ORDER, order).Logger()
 			logger.Info().Msg("received request create order")
-			logger.Info().Msg("inserting order to batches")
+			logger.Trace().Msg("inserting order to batches")
 			batch = append(batch, order)
 			logger.Info().Msg("inserted order to batches")
 		}

@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 
 	inHttp "github.com/Alturino/ecommerce/internal/http"
@@ -14,11 +15,12 @@ func RecoverPanic(next http.Handler) http.Handler {
 		c, span := otel.Tracer.Start(r.Context(), "RecoverPanic")
 		defer span.End()
 
-		logger := zerolog.Ctx(c).With().Logger()
+		logger := zerolog.Ctx(c).With().Ctx(c).Logger()
 		defer func() {
-			if err := recover(); err != nil {
-				logger.Error().Err(err.(error)).Stack().Msg("recovered from panic")
-				otel.RecordError(err.(error), span)
+			if r := recover(); r != nil {
+				err := errors.Cause(r.(error))
+				logger.Error().Err(err).Stack().Msg("recovered from panic")
+				otel.RecordError(err, span)
 				inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 					"status":     "failed",
 					"statusCode": http.StatusInternalServerError,
@@ -28,6 +30,7 @@ func RecoverPanic(next http.Handler) http.Handler {
 			}
 		}()
 
+		r = r.WithContext(logger.WithContext(c))
 		next.ServeHTTP(w, r)
 	})
 }

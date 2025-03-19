@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -39,10 +40,15 @@ func AttachOrderController(
 	controller := OrderController{service: service, queue: queue}
 
 	router := mux.PathPrefix("/orders").Subrouter()
-	router.Use(middleware.Auth)
+	router.Use(
+		otelmux.Middleware(constants.APP_ORDER_SERVICE),
+		middleware.Logging,
+		middleware.RecoverPanic,
+		middleware.Auth,
+	)
 	router.HandleFunc("", controller.FindOrders).Methods(http.MethodGet)
 	router.HandleFunc("/{orderId}", controller.FindOrderById).Methods(http.MethodGet)
-	router.HandleFunc("/checkout", controller.BatchCreateOrder).Methods(http.MethodPost)
+	router.HandleFunc("/checkout", controller.Checkout).Methods(http.MethodPost)
 	// router.HandleFunc("/checkout", controller.CreateOrderOptimisticLock).Methods(http.MethodPost)
 }
 
@@ -52,6 +58,7 @@ func (ctrl OrderController) FindOrderById(w http.ResponseWriter, r *http.Request
 
 	logger := zerolog.Ctx(c).
 		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "OrderController FindOrderById").
 		Logger()
 
@@ -100,6 +107,7 @@ func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 
 	logger := zerolog.Ctx(c).
 		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "OrderController FindOrders").
 		Str(constants.KEY_PROCESS, "finding orders").
 		Logger()
@@ -116,6 +124,7 @@ func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
 		})
+
 		return
 	}
 	logger.Info().Msg("validated userId")
@@ -131,6 +140,7 @@ func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
 		})
+
 		return
 	}
 	logger = logger.With().
@@ -155,6 +165,7 @@ func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
 		})
+
 		return
 	}
 	logger.Info().Any(constants.KEY_ORDERS, orders).Msg("found orders")
@@ -169,17 +180,19 @@ func (ctrl OrderController) FindOrders(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Request) {
+func (ctrl OrderController) Checkout(w http.ResponseWriter, r *http.Request) {
 	c, span := otel.Tracer.Start(r.Context(), "OrderController BatchCreateOrder")
 	defer span.End()
 
 	logger := zerolog.Ctx(c).
 		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "OrderController BatchCreateOrder").
 		Logger()
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "getting userId from jwtToken").Logger()
-	logger.Info().Msg("getting userId from jwtToken")
+	logger.Trace().Msg("getting userId from jwtToken")
+	span.AddEvent("getting userId from jwtToken")
 	userId, err := internal.UserIdFromJwtToken(c)
 	if err != nil {
 		err = fmt.Errorf("failed getting userId from jwtToken with error=%w", err)
@@ -190,14 +203,17 @@ func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Requ
 			"statusCode": http.StatusBadRequest,
 			"message":    err.Error(),
 		})
+
 		return
 	}
+	span.AddEvent("got userId from jwtToken")
 	logger = logger.With().Str(constants.KEY_USER_ID, userId.String()).Logger()
-	logger.Info().Msgf("got userId=%s", userId.String())
+	logger.Info().Msg("got userId from jwtToken")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "decoding request body").Logger()
-	logger.Info().Msg("decoding request body")
+	logger.Trace().Msg("decoding request body")
 	param := request.CreateOrder{}
+	span.AddEvent("decoding request body")
 	err = json.NewDecoder(r.Body).Decode(&param)
 	if err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
@@ -210,6 +226,7 @@ func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
+	span.AddEvent("decoded request body")
 	logger = logger.With().
 		Str(constants.KEY_ORDER_ID, param.ID.String()).
 		Str(constants.KEY_USER_ID, param.UserId.String()).
@@ -222,8 +239,9 @@ func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Requ
 	logger.Info().Msg("decoded request body")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "validating request body").Logger()
-	logger.Info().Msg("validating request body")
+	logger.Trace().Msg("validating request body")
 	validate := validator.New(validator.WithRequiredStructEnabled())
+	span.AddEvent("validating request body")
 	err = validate.StructCtx(c, param)
 	if err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
@@ -236,11 +254,13 @@ func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
+	span.AddEvent("validated request body")
 	logger.Info().Msg("validated request body")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "creating order").Logger()
-	logger.Info().Msg("creating order")
+	logger.Trace().Msg("creating order")
 	param.ResultChannel = make(chan response.Result, 1)
+	c = logger.WithContext(c)
 	c, done := context.WithTimeoutCause(c, time.Second*3, errors.New("timeout creating order"))
 	defer done()
 	select {
@@ -283,7 +303,7 @@ func (ctrl OrderController) BatchCreateOrder(w http.ResponseWriter, r *http.Requ
 		logger.Info().Msg("order created")
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 			"status":     "success",
-			"statusCode": http.StatusOK,
+			"statusCode": http.StatusCreated,
 			"message":    "order created",
 			"data": map[string]interface{}{
 				"order": result.Order,

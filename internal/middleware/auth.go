@@ -23,6 +23,7 @@ func Auth(next http.Handler) http.Handler {
 
 		logger := zerolog.Ctx(c).
 			With().
+			Ctx(c).
 			Str(constants.KEY_TAG, "middleware Auth").
 			Logger()
 
@@ -63,8 +64,7 @@ func Auth(next http.Handler) http.Handler {
 		logger = logger.With().Str(constants.KEY_PROCESS, "attaching jwt token to context").Logger()
 		logger.Info().Msg("attaching jwt token to context")
 		c = internal.AttachJwtToken(c, jwt)
-		c = logger.WithContext(c)
-		r = r.WithContext(c)
+		r = r.WithContext(logger.WithContext(c))
 		logger.Info().Msg("attached jwt token to context")
 
 		next.ServeHTTP(w, r)

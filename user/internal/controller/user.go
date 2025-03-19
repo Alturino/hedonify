@@ -11,9 +11,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 
 	"github.com/Alturino/ecommerce/internal/constants"
 	inHttp "github.com/Alturino/ecommerce/internal/http"
+	"github.com/Alturino/ecommerce/internal/middleware"
 	inOtel "github.com/Alturino/ecommerce/internal/otel"
 	userErrors "github.com/Alturino/ecommerce/user/internal/errors"
 	"github.com/Alturino/ecommerce/user/internal/otel"
@@ -29,6 +31,11 @@ func AttachUserController(c context.Context, mux *mux.Router, service *service.U
 	controller := UserController{service: service}
 
 	router := mux.PathPrefix("/users").Subrouter()
+	router.Use(
+		otelmux.Middleware(constants.APP_USER_SERVICE),
+		middleware.Logging,
+		middleware.RecoverPanic,
+	)
 	router.HandleFunc("/login", controller.Login).Methods(http.MethodPost)
 	router.HandleFunc("/register", controller.Register).Methods(http.MethodPost)
 	router.HandleFunc("/{userId}", controller.FindUserById).Methods(http.MethodGet)
@@ -40,11 +47,12 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 
 	logger := zerolog.Ctx(c).
 		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "UserController Login").
 		Logger()
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "decoding requestbody").Logger()
-	logger.Info().Msg("decoding request body")
+	logger.Trace().Msg("decoding request body")
 	span.AddEvent("decoding request body")
 	reqBody := request.LoginRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
@@ -58,17 +66,17 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger.Info().Msg("decoded request body")
 	span.AddEvent("decoded request body")
+	logger.Trace().Msg("decoded request body")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "validating.request_body").Logger()
-	logger.Info().Msg("initializing validator")
+	logger.Trace().Msg("initializing validator")
 	span.AddEvent("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
-	logger.Info().Msg("initialized validator")
 	span.AddEvent("initialized validator")
+	logger.Trace().Msg("initialized validator")
 
-	logger.Info().Msg("validating request body")
+	logger.Trace().Msg("validating request body")
 	span.AddEvent("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%s", err.Error())
@@ -81,12 +89,13 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger.Info().Msg("validated request body")
+	logger.Trace().Msg("validated request body")
 	span.AddEvent("validated request body")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "login").Logger()
-	logger.Info().Msg("trying to login")
+	logger.Trace().Msg("trying to login")
 	span.AddEvent("trying to login")
+	c = logger.WithContext(c)
 	token, err := u.service.Login(c, reqBody)
 	if (err != nil && errors.Is(err, userErrors.ErrUserNotFound)) || token == "" {
 		err = errors.Join(err, userErrors.ErrUserNotFound)
@@ -117,13 +126,15 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 	c, span := otel.Tracer.Start(r.Context(), "UserController Register")
 	defer span.End()
 
-	logger := zerolog.Ctx(r.Context()).
+	logger := zerolog.Ctx(c).
 		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "UserController Register").
 		Logger()
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "decoding request body").Logger()
-	logger.Info().Msg("decoding request body")
+	logger.Trace().Msg("decoding request body")
+	span.AddEvent("decoding request body")
 	reqBody := request.Register{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		logger.Error().
@@ -137,14 +148,18 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger.Info().Msg("decoded request body")
+	span.AddEvent("decoded request body")
+	logger.Trace().Msg("decoded request body")
 
-	logger = logger.With().Str(constants.KEY_PROCESS, "validating request body").Logger()
-	logger.Info().Msg("initializing validator")
+	logger = logger.With().Str(constants.KEY_PROCESS, "validate request body").Logger()
+	logger.Trace().Msg("initializing validator")
+	span.AddEvent("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
-	logger.Info().Msg("initialized validator")
+	span.AddEvent("initialized validator")
+	logger.Trace().Msg("initialized validator")
 
-	logger.Info().Msg("validating request body")
+	logger.Trace().Msg("validating request body")
+	span.AddEvent("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil &&
 		errors.Is(err, &validator.InvalidValidationError{}) {
 		err = fmt.Errorf("failed validating request body with error=%w", err)
@@ -157,10 +172,12 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger.Info().Msg("validated request body")
+	span.AddEvent("validated request body")
+	logger.Debug().Msg("validated request body")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "registering user").Logger()
-	logger.Info().Msg("registering user")
+	logger.Trace().Msg("registering user")
+	c = logger.WithContext(c)
 	user, err := u.service.Register(c, reqBody)
 	if err != nil {
 		err = fmt.Errorf("failed registering user with error=%w", err)
@@ -181,6 +198,7 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	span.AddEvent("registered user")
 	logger.Info().Msg("registered user")
 
 	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
@@ -200,17 +218,21 @@ func (u UserController) FindUserById(w http.ResponseWriter, r *http.Request) {
 
 	logger := zerolog.Ctx(c).
 		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "UserController FindUserById").
 		Logger()
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "parsing path values").Logger()
-	logger.Info().Msg("parsing path values")
+	logger.Trace().Msg("parsing path values")
+	span.AddEvent("parsing path values")
 	pathValues := mux.Vars(r)
+	span.AddEvent("parsed path values")
 	logger = logger.With().Any(constants.KEY_PATH_VALUES, pathValues).Logger()
-	logger.Info().Msg("parsed path values")
+	logger.Trace().Msg("parsed path values")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "getting userId in pathValues").Logger()
-	logger.Info().Msg("getting userId in pathValues")
+	logger.Trace().Msg("getting userId in pathValues")
+	span.AddEvent("getting userId in pathValues")
 	pathValue, ok := pathValues["userId"]
 	if !ok {
 		err := errors.New("userId not found in pathValues")
@@ -223,11 +245,13 @@ func (u UserController) FindUserById(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	span.AddEvent("userId found in pathValues")
 	logger = logger.With().Str(constants.KEY_USER_ID, pathValue).Logger()
-	logger.Info().Msg("userId found in pathValues")
+	logger.Trace().Msg("userId found in pathValues")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "validating userId").Logger()
-	logger.Info().Msg("validating userId")
+	logger.Trace().Msg("validating userId")
+	span.AddEvent("validating userId")
 	userId, err := uuid.Parse(pathValue)
 	if err != nil {
 		err = fmt.Errorf("failed validating userId with error=%w", err)
@@ -240,11 +264,13 @@ func (u UserController) FindUserById(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	span.AddEvent("validated userId")
 	logger = logger.With().Str(constants.KEY_USER_ID, userId.String()).Logger()
-	logger.Info().Msg("validated userId")
+	logger.Trace().Msg("validated userId")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "finding user by id").Logger()
-	logger.Info().Msg("finding user by id")
+	logger.Trace().Msg("finding user by id")
+	span.AddEvent("finding user by id")
 	c = logger.WithContext(c)
 	user, err := u.service.FindUserById(c, request.FindUserById{ID: userId})
 	if err != nil {
@@ -258,6 +284,7 @@ func (u UserController) FindUserById(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	span.AddEvent("found user by id")
 	logger = logger.With().Any(constants.KEY_USER, user).Logger()
 	logger.Info().Msg("found user by id")
 

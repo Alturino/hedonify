@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -31,7 +32,12 @@ func AttachCartController(mux *mux.Router, service *service.CartService) {
 	controller := CartController{service: service}
 
 	router := mux.PathPrefix("/carts").Subrouter()
-	router.Use(middleware.Auth)
+	router.Use(
+		otelmux.Middleware(constants.APP_CART_SERVICE),
+		middleware.Logging,
+		middleware.RecoverPanic,
+		middleware.Auth,
+	)
 	router.HandleFunc("", controller.InsertCart).Methods(http.MethodPost)
 	router.HandleFunc("/{cartId}/checkout", controller.CheckoutCart).Methods(http.MethodPost)
 	router.HandleFunc("/{cartId}", controller.FindCartById).Methods(http.MethodGet)
@@ -45,11 +51,13 @@ func (t CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 
 	logger := zerolog.Ctx(c).
 		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "CartController InsertCart").
 		Logger()
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "decoding requestbody").Logger()
-	logger.Info().Msg("decoding requestbody")
+	logger.Trace().Msg("decoding requestbody")
+	span.AddEvent("decoding requestbody")
 	reqBody := request.Cart{}
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		err = fmt.Errorf("failed decoding request body with error=%w", err)
@@ -62,15 +70,17 @@ func (t CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger.Info().Msg("decoded request body")
+	span.AddEvent("decoded request body")
+	logger.Debug().Msg("decoded request body")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "validating requestbody").Logger()
-	logger.Info().Msg("initializing validator")
+	logger.Trace().Msg("initializing validator")
 	validate := validator.New(validator.WithRequiredStructEnabled())
-	logger.Info().Msg("initialized validator")
+	logger.Debug().Msg("initialized validator")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "validating requestbody").Logger()
-	logger.Info().Msg("validating request body")
+	logger.Trace().Msg("validating request body")
+	span.AddEvent("validating request body")
 	if err := validate.StructCtx(c, reqBody); err != nil {
 		err = fmt.Errorf("failed validating request body with error=%w", err)
 		inOtel.RecordError(err, span)
@@ -82,10 +92,13 @@ func (t CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	logger.Info().Msg("validated request body")
+	span.AddEvent("validated request body")
+	logger.Debug().Msg("validated request body")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "getting userId from jwtToken").Logger()
-	logger.Info().Msg("getting userId from jwtToken")
+	logger.Trace().Msg("getting userId from jwtToken")
+	span.AddEvent("getting userId from jwtToken")
+	c = logger.WithContext(c)
 	userId, err := internal.UserIdFromJwtToken(c)
 	if err != nil {
 		err = fmt.Errorf("failed getting userId from jwtToken with error=%w", err)
@@ -98,11 +111,13 @@ func (t CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	span.AddEvent("got user id")
 	logger = logger.With().Str(constants.KEY_USER_ID, userId.String()).Logger()
-	logger.Info().Msgf("got userId=%s", userId.String())
+	logger.Debug().Msg("got user id")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "inserting cart").Logger()
-	logger.Info().Msg("inserting cart")
+	logger.Trace().Msg("inserting cart")
+	span.AddEvent("inserting cart")
 	c = logger.WithContext(c)
 	cart, err := t.service.InsertCart(c, reqBody, userId)
 	if err != nil {
@@ -116,6 +131,7 @@ func (t CartController) InsertCart(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	span.AddEvent("inserted cart")
 	logger.Info().Msg("inserted cart")
 
 	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
@@ -132,12 +148,15 @@ func (t CartController) FindCartById(w http.ResponseWriter, r *http.Request) {
 	c, span := otel.Tracer.Start(r.Context(), "CartController FindCartById")
 	defer span.End()
 
-	logger := zerolog.Ctx(c).With().
+	logger := zerolog.Ctx(c).
+		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "CartController FindCartById").
-		Str(constants.KEY_PROCESS, "validating uuid").
 		Logger()
 
-	logger.Info().Msg("validating uuid")
+	logger = logger.With().Str(constants.KEY_PROCESS, "validating uuid").Logger()
+	logger.Trace().Msg("validating uuid")
+	span.AddEvent("validating uuid")
 	pathValues := mux.Vars(r)
 	cartId, err := uuid.Parse(pathValues["cartId"])
 	if err != nil {
@@ -151,14 +170,15 @@ func (t CartController) FindCartById(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	span.AddEvent("validated uuid")
 	logger = logger.With().
 		Str(constants.KEY_CART_ID, cartId.String()).
 		Any(constants.KEY_PATH_VALUES, pathValues).
 		Logger()
-	logger.Info().Msgf("validated uuid cartId=%s", cartId.String())
+	logger.Debug().Msg("validated uuid")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "getting userId from jwtToken").Logger()
-	logger.Info().Msg("getting userId from jwtToken")
+	logger.Trace().Msg("getting userId from jwtToken")
 	userId, err := internal.UserIdFromJwtToken(c)
 	if err != nil {
 		err = fmt.Errorf("failed getting userId from jwtToken with error=%w", err)
@@ -171,13 +191,13 @@ func (t CartController) FindCartById(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	span.AddEvent("got user id from jwt token")
 	logger = logger.With().Str(constants.KEY_USER_ID, userId.String()).Logger()
-	logger.Info().Msgf("got userId=%s", userId.String())
+	logger.Debug().Msg("got user id from jwt token")
 
-	logger = logger.With().
-		Str(constants.KEY_PROCESS, fmt.Sprintf("finding cartId=%s", cartId.String())).
-		Logger()
-	logger.Info().Msgf("finding cartId=%s", cartId.String())
+	logger = logger.With().Str(constants.KEY_PROCESS, "find cart").Logger()
+	logger.Trace().Msg("find cart id")
+	span.AddEvent("find cart id")
 	c = logger.WithContext(c)
 	cart, err := t.service.FindCartById(c, request.FindCartById{ID: cartId, UserId: userId})
 	if err != nil {
@@ -191,8 +211,9 @@ func (t CartController) FindCartById(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	span.AddEvent("found cart id")
 	logger = logger.With().Any(constants.KEY_CART, cart).Logger()
-	logger.Info().Msgf("found cartId=%s", cartId.String())
+	logger.Info().Msg("found cart id")
 
 	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
@@ -210,11 +231,12 @@ func (t CartController) RemoveCartItem(w http.ResponseWriter, r *http.Request) {
 
 	logger := zerolog.Ctx(c).
 		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "CartController RemoveCartItem").
 		Str(constants.KEY_PROCESS, "validating cartId").
 		Logger()
 
-	logger.Info().Msg("validating cartId is valid uuid")
+	logger.Trace().Msg("validating cartId is a valid uuid")
 	cartId, err := uuid.Parse(r.PathValue("cartId"))
 	if err != nil {
 		err = fmt.Errorf("failed validating cartId=%s with error=%w", cartId.String(), err)
@@ -228,10 +250,10 @@ func (t CartController) RemoveCartItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger = logger.With().Str(constants.KEY_CART_ID, cartId.String()).Logger()
-	logger.Info().Msgf("valid cartId=%s", cartId.String())
+	logger.Debug().Msg("cart id is a valid uuid")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "validating cartItemId").Logger()
-	logger.Info().Msg("validating cartItemId is valid uuid")
+	logger.Trace().Msg("validating cartItemId is valid uuid")
 	cartItemId, err := uuid.Parse(r.PathValue("cartItemId"))
 	if err != nil {
 		err = fmt.Errorf("failed validating cartItemId=%s with error=%w", cartId.String(), err)
@@ -245,19 +267,14 @@ func (t CartController) RemoveCartItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger = logger.With().Str(constants.KEY_CART_ITEM_ID, cartItemId.String()).Logger()
-	logger.Info().Msgf("valid cartItemId=%s", cartItemId.String())
+	logger.Debug().Msg("cart item id is a valid uuid")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "removing cart item").Logger()
-	logger.Info().Msg("removing cart item")
+	logger.Trace().Msg("removing cart item")
 	c = logger.WithContext(c)
 	err = t.service.RemoveCartItem(c, request.RemoveCartItem{ID: cartItemId, CartId: cartId})
 	if err != nil {
-		err = fmt.Errorf(
-			"failed removing cartItemId=%s in cartId=%s with error=%w",
-			cartItemId.String(),
-			cartId.String(),
-			err,
-		)
+		err = fmt.Errorf("failed removing cart item with error=%w", err)
 		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
@@ -270,8 +287,8 @@ func (t CartController) RemoveCartItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t CartController) CheckoutCart(w http.ResponseWriter, r *http.Request) {
-	requestId := log.RequestIDFromContext(r.Context())
-	requestIdAttr := attribute.String(constants.KEY_REQUEST_ID, requestId)
+	reqId := log.RequestIDFromContext(r.Context())
+	requestIdAttr := attribute.String(constants.KEY_REQUEST_ID, reqId)
 	c, span := otel.Tracer.Start(
 		r.Context(),
 		"CartController CheckoutCart",
@@ -281,20 +298,24 @@ func (t CartController) CheckoutCart(w http.ResponseWriter, r *http.Request) {
 
 	logger := zerolog.Ctx(c).
 		With().
+		Ctx(c).
 		Str(constants.KEY_TAG, "CartController CheckoutCart").
 		Logger()
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "getting path values").Logger()
-	logger.Info().Msg("getting path values")
+	logger.Trace().Msg("getting path values")
+	span.AddEvent("getting path values")
 	pathValues := mux.Vars(r)
 	logger = logger.With().Any(constants.KEY_PATH_VALUES, pathValues).Logger()
-	logger.Info().Msg("got path values")
+	span.AddEvent("got path values")
+	logger.Debug().Msg("got path values")
 
-	logger = logger.With().Str(constants.KEY_PROCESS, "validating cartId").Logger()
-	logger.Info().Msg("validating cartId")
+	logger = logger.With().Str(constants.KEY_PROCESS, "validating cart id").Logger()
+	logger.Trace().Msg("validating cart id")
+	span.AddEvent("validating cart id")
 	cartId, err := uuid.Parse(pathValues["cartId"])
 	if err != nil {
-		err = fmt.Errorf("failed validating cartId=%s with error=%w", cartId.String(), err)
+		err = fmt.Errorf("failed validating cart id=%s with error=%w", cartId.String(), err)
 		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
@@ -304,11 +325,13 @@ func (t CartController) CheckoutCart(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	span.AddEvent("cart id is valid uuid")
 	logger = logger.With().Str(constants.KEY_CART_ID, cartId.String()).Logger()
-	logger.Info().Msgf("validated cartId=%s", cartId.String())
+	logger.Debug().Msg("cart id is valid uuid")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "getting userId from jwtToken").Logger()
-	logger.Info().Msg("getting userId from jwtToken")
+	logger.Trace().Msg("getting userId from jwtToken")
+	span.AddEvent("getting userId from jwtToken")
 	userId, err := internal.UserIdFromJwtToken(c)
 	if err != nil {
 		err = fmt.Errorf("failed getting userId from jwtToken with error=%w", err)
@@ -321,11 +344,13 @@ func (t CartController) CheckoutCart(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	span.AddEvent("got user id")
 	logger = logger.With().Str(constants.KEY_USER_ID, userId.String()).Logger()
-	logger.Info().Msgf("got userId=%s", userId.String())
+	logger.Debug().Msg("got user id")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "checkout cart").Logger()
-	logger.Info().Msg("checking out cart cart")
+	logger.Trace().Msg("checking out cart cart")
+	span.AddEvent("checking out cart cart")
 	jwt := internal.JwtTokenFromContext(c)
 	c = logger.WithContext(c)
 	cart, err := t.service.CheckoutCart(
@@ -334,7 +359,7 @@ func (t CartController) CheckoutCart(w http.ResponseWriter, r *http.Request) {
 		request.CheckoutCart{UserId: userId, CartId: cartId},
 	)
 	if err != nil {
-		err = fmt.Errorf("failed checkout cartId=%s with error=%w", cartId.String(), err)
+		err = fmt.Errorf("failed checkout cart id=%s with error=%w", cartId.String(), err)
 		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
@@ -344,12 +369,13 @@ func (t CartController) CheckoutCart(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	span.AddEvent("checkout cart")
 	logger.Info().Msg("checkout cart")
 
 	inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
 		"status":     "success",
 		"statusCode": http.StatusOK,
-		"message":    fmt.Sprintf("checkout cartId=%s", cartId.String()),
+		"message":    fmt.Sprintf("checkout cart id=%s", cartId.String()),
 		"data": map[string]interface{}{
 			"cart": cart,
 		},
