@@ -2,10 +2,11 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"sync"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/rs/zerolog"
 	zl "github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 
@@ -31,11 +32,35 @@ type Database struct {
 	Port           uint16 `mapstructure:"port"            json:"port"`
 }
 
+func (d Database) MarshalJSON() ([]byte, error) {
+	d.Password = "***"
+	type D Database
+	return json.Marshal(D(d))
+}
+
+func (d Database) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("name", d.Name).
+		Str("host", d.Host).
+		Str("username", d.Username).
+		Str("migration_path", d.MigrationPath).
+		Str("password", "***")
+}
+
 type Cache struct {
 	Host     string `mapstructure:"host"     json:"host"`
 	Password string `mapstructure:"password" json:"password"`
 	Database int    `mapstructure:"database" json:"database"`
 	Port     uint16 `mapstructure:"port"     json:"port"`
+}
+
+func (c Cache) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("host", c.Host).Int("database", c.Database).Str("password", "***")
+}
+
+func (c Cache) MarshalJSON() ([]byte, error) {
+	c.Password = "***"
+	type C Cache
+	return json.Marshal(C(c))
 }
 
 type Otel struct {
@@ -50,10 +75,7 @@ type Config struct {
 	Otel        `mapstructure:"otel"        json:"otel"`
 }
 
-var (
-	once   sync.Once
-	config Config
-)
+var config Config
 
 func Get(c context.Context, filename string) Config {
 	logger := zl.Logger.

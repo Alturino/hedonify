@@ -67,6 +67,7 @@ func (u UserController) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	span.AddEvent("decoded request body")
+	logger = logger.With().Any("login_request", reqBody).Logger()
 	logger.Trace().Msg("decoded request body")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "validating.request_body").Logger()
@@ -149,6 +150,7 @@ func (u UserController) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	span.AddEvent("decoded request body")
+	logger = logger.With().Any("register_request", reqBody).Logger()
 	logger.Trace().Msg("decoded request body")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "validate request body").Logger()

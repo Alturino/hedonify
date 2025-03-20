@@ -139,7 +139,7 @@ func (u UserService) Login(
 			return "", err
 		}
 		span.AddEvent("inserted token to cache")
-		logger.Info().Msg("inserted token to cache")
+		logger.Debug().Msg("inserted token to cache")
 	}
 	logger.Info().RawJSON(constants.KEY_JSON_CACHE, []byte(signedToken)).Msg("got token from cache")
 	span.AddEvent(
@@ -216,7 +216,7 @@ func (svc UserService) Register(
 		return repository.User{}, err
 	}
 	span.AddEvent("inserted user to database")
-	logger.Info().Msg("inserted user to database")
+	logger.Trace().Msg("inserted user to database")
 
 	logger = logger.With().Str(constants.KEY_PROCESS, "inserting user to cache").Logger()
 	logger.Trace().Msg("inserting user to cache")
@@ -229,7 +229,7 @@ func (svc UserService) Register(
 		return user, nil
 	}
 	span.AddEvent("inserted user to cache")
-	logger.Info().Msg("inserted user to cache")
+	logger.Debug().Msg("inserted user to cache")
 
 	logger.Info().Msg("registered user")
 	return user, nil

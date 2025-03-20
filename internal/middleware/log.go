@@ -1,14 +1,10 @@
 package middleware
 
 import (
-	"bytes"
-	"encoding/json"
-	"io"
 	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	zl "github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -38,23 +34,6 @@ func Logging(next http.Handler) http.Handler {
 		)
 		defer span.End()
 
-		var buffer bytes.Buffer
-		tee := io.TeeReader(r.Body, &buffer)
-		requestBody := map[string]interface{}{}
-		err := json.NewDecoder(tee).Decode(&requestBody)
-		if err != nil {
-			zl.Debug().
-				Str(constants.KEY_REQUEST_ID, reqId).
-				Str(constants.KEY_SPAN_ID, span.SpanContext().SpanID().String()).
-				Str(constants.KEY_TRACE_ID, span.SpanContext().TraceID().String()).
-				Err(err).
-				Msg("failed decoding request body")
-		}
-		if requestBody["password"] != nil {
-			requestBody["password"] = "****"
-		}
-		r.Body = io.NopCloser(&buffer)
-
 		c = log.AttachRequestIDToContext(c, reqId)
 		logger := zerolog.Ctx(c).
 			With().
@@ -66,8 +45,7 @@ func Logging(next http.Handler) http.Handler {
 				Str(constants.KEY_REQUEST_IP, r.RemoteAddr).
 				Str(constants.KEY_REQUEST_METHOD, r.Method).
 				Str(constants.KEY_REQUEST_URI, r.RequestURI).
-				Str(constants.KEY_REQUEST_URL, r.URL.String()).
-				Any(constants.KEY_BODY, requestBody)).
+				Str(constants.KEY_REQUEST_URL, r.URL.String())).
 			Str(constants.KEY_TAG, "middleware Logging").
 			Logger().
 			Hook(log.AttachTraceIdFromContext())

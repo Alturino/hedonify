@@ -230,6 +230,7 @@ func (ctrl OrderController) Checkout(w http.ResponseWriter, r *http.Request) {
 	logger = logger.With().
 		Str(constants.KEY_ORDER_ID, param.ID.String()).
 		Str(constants.KEY_USER_ID, param.UserId.String()).
+		Any(constants.KEY_ORDER, param).
 		Logger()
 	param.TraceLink = trace.LinkFromContext(c)
 	span.SetAttributes(
@@ -244,7 +245,7 @@ func (ctrl OrderController) Checkout(w http.ResponseWriter, r *http.Request) {
 	span.AddEvent("validating request body")
 	err = validate.StructCtx(c, param)
 	if err != nil {
-		err = fmt.Errorf("failed decoding request body with error=%w", err)
+		err = fmt.Errorf("failed validating request body with error=%w", err)
 		inOtel.RecordError(err, span)
 		logger.Error().Err(err).Msg(err.Error())
 		inHttp.WriteJsonResponse(c, w, map[string]string{}, map[string]interface{}{
