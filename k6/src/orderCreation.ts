@@ -55,18 +55,22 @@ export default function () {
   // randomize user
   const userRandomIndex = Math.floor(Math.random() * users.length);
   const user = users[userRandomIndex];
-  const loginResponse = http
-    .post("http://localhost/users/login", JSON.stringify(user), {})
-    .json();
-  const isLoginSuccess = check(loginResponse, {
+  const loginReq = http.post(
+    "http://localhost/users/login",
+    JSON.stringify(user),
+    {},
+  );
+  console.log(`loginReq=${JSON.stringify(loginReq)}`);
+  const isLoginSuccess = check(loginReq.json(), {
     "Success login user": (r) => r?.statusCode === 200,
   });
   if (!isLoginSuccess) {
-    console.error(`loginResponse=${JSON.stringify(loginResponse)}`);
+    console.error(`loginRes=${JSON.stringify(loginReq.json())}`);
     fail("Failed login user");
   }
-  console.log(`loginResponse=${JSON.stringify(loginResponse)}`);
-  const token = loginResponse.data.token;
+  console.log(`loginRes=${JSON.stringify(loginReq.json())}`);
+  const loginRes = loginReq.json();
+  const token = loginRes.data.token;
 
   // randomize product selection
   const cartItems = [];
@@ -87,41 +91,48 @@ export default function () {
   console.log(`cartItems=${JSON.stringify(cartItems)}`);
 
   // insert cart
-  const insertCartResponse = http
-    .post("http://localhost/carts", JSON.stringify({ cart_items: cartItems }), {
+  const insertCartReq = http.post(
+    "http://localhost/carts",
+    JSON.stringify({ cart_items: cartItems }),
+    {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-    })
-    .json();
-  const isInsertCartSuccess = check(insertCartResponse, {
+    },
+  );
+  console.log(`insertCartReq=${JSON.stringify(insertCartReq)}`);
+  const isInsertCartSuccess = check(insertCartReq.json(), {
     "Success insert cart": (r) => r?.statusCode === 200,
   });
   if (!isInsertCartSuccess) {
-    console.error(`insertCartResponse=${JSON.stringify(insertCartResponse)}`);
+    console.error(`insertCartResponse=${JSON.stringify(insertCartReq)}`);
     fail("Failed insert cart");
   }
-  console.log(`insertCartResponse=${JSON.stringify(insertCartResponse)}`);
+  const insertCartRes = insertCartReq.json();
+  console.log(`insertCartResponse=${JSON.stringify(insertCartRes)}`);
 
   // checkout cart
-  const cartId = insertCartResponse.data.cart.id;
-  const checkoutResponse = http
-    .post(`http://localhost/carts/${cartId}/checkout`, JSON.stringify({}), {
+  const cartId = insertCartReq.json().data.cart.id;
+  const checkoutReq = http.post(
+    `http://localhost/carts/${cartId}/checkout`,
+    JSON.stringify({}),
+    {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-    })
-    .json();
-  const isCheckoutSuccess = check(checkoutResponse, {
+    },
+  );
+  console.log(`checkoutReq=${JSON.stringify(checkoutReq)}`);
+  const isCheckoutSuccess = check(checkoutReq.json(), {
     "Success checkout cart": (r) => r?.statusCode === 200,
   });
   if (!isCheckoutSuccess) {
     counterOrderFail.add(1);
-    console.error(`checkoutResponse=${JSON.stringify(checkoutResponse)}`);
+    console.error(`checkoutResponse=${JSON.stringify(checkoutReq)}`);
     fail("Failed checkout");
   }
-  console.log(`checkoutResponse=${JSON.stringify(checkoutResponse)}`);
+  console.log(`checkoutResponse=${JSON.stringify(checkoutReq)}`);
   counterOrderSuccess.add(1);
 }
