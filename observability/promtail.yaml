@@ -49,3 +49,27 @@ scrape_configs:
           user_id:
           span_id:
           trace_id:
+  - job_name: nginx_log_scrape
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx
+          __path__: /var/log/nginx/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            timestamp: ts
+            message: message
+            request:
+            status: status
+      - json:
+          expressions:
+            request:
+          source: request
+      - labels:
+          level:
+          timestamp:
+          message:
+          status:
