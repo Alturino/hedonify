@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis
+data:
+  init.sh: |
+    #!/bin/bash
+    set -ex
+
+    sed -i "s/'${REDIS_USER}'/$REDIS_USER/g" master.conf
+    sed -i "s/'${REDIS_PASSWORD}'/$REDIS_PASSWORD/g" master.conf
+
+    sed -i "s/'${REDIS_USER}'/$REDIS_USER/g" slave.conf
+    sed -i "s/'${REDIS_PASSWORD}'/$REDIS_PASSWORD/g" slave.conf
+
+    if [[ "$HOSTNAME" == 'redis-0' ]]; then
+      redis-server /redis-config/master.conf
+    else
+      redis-server /redis-config/slave.conf
+    fi
+  master.conf: |
+    bind 0.0.0.0
+    port 6379
+    dir /redis-data
+    user ${REDIS_USER} on +@all ~* >${REDIS_PASSWORD}
+    maxmemory-policy allkeys-lru
+  sentinel.conf: |
+    bind 0.0.0.0
+    port 26379
+    sentinel monitor redis redis-0.redis 6379 2
+    sentinel parallel-sync redis 1
+    sentinel down-after-milliseconds redis 10000
+    sentinel failover-timeout redis 20000
+  sentinel.sh: |
+    #!/bin/bash
+    set -ex
+    while ! ping -c 1 redis-0.redis; do
+      echo 'Waiting for server'
+      sleep 1
+    done
+  slave.conf: |
+    bind 0.0.0.0
+    port 6379
+    dir .
+    slaveof redis-0.redis 6379
+    masterauth ${REDIS_PASSWORD}

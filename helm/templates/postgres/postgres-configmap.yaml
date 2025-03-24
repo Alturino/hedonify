@@ -1,0 +1,129 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{.Values.appName}}-postgres-configmap
+data:
+  init.sh: |
+    #!/bin/bash
+    set -ex
+
+    if [[ "$HOSTNAME" == 'postgres-0' ]]; then
+      echo "setup primary server"
+      mkdir -p /data/archive && chown postgres:postgres /data/archive
+
+      echo "CREATE USER '${REPLICATION_USER}' REPLICATION LOGIN ENCRYPTED PASSWORD '${REPLICATION_PASSWORD}';" > init.sql
+
+      sed -i "s/'${REPLICATION_USER}'/$REPLICATION_USER/g" init.sql
+      sed -i "s/'${REPLICATION_PASSWORD}'/$REPLICATION_PASSWORD/g" init.sql
+
+      mkdir -p /docker-entrypoint-initdb.d
+      cp init.sql /docker-entrypoint-initdb.d/init.sql
+
+      mkdir -p /temp-config
+      cp /config/primary.conf /temp-config/postgresql.conf
+      cp /config/primary_pg_hba.conf /temp-config/pg_hba.conf
+
+      echo "finised setup primary server"
+    else
+      echo "setup standby server"
+
+      mkdir -p /temp-config
+      cp /config/standby.conf /temp-config/postgresql.conf
+      cp /config/standby_pg_hba.conf /temp-config/pg_hba.conf
+
+      if [[ -z "$(ls -A "$PGDATA")" ]]; then
+        export PGPASSWORD=$REPLICATION_PASSWORD
+        pg_basebackup -h "postgres-0.postgres" -p 5432 -U "$REPLICATION_USER" -D "$PGDATA" -F p -X s -R
+      fi
+
+      echo "finised setup standby server"
+    fi
+    echo "initialized"
+  primary.conf: |
+    data_directory = '/data/pgdata'
+    hba_file = '/temp-config/pg_hba.conf'
+    ident_file = '/temp-config/pg_ident.conf'
+
+    port = 5432
+    listen_addresses = '*'
+    max_connections = 100
+    shared_buffers = 128MB
+    dynamic_shared_memory_type = posix
+    log_timezone = 'Etc/UTC'
+    datestyle = 'iso, mdy'
+    timezone = 'Etc/UTC'
+
+    #locale settings
+    lc_messages = 'en_US.utf8' # locale for system error message
+    lc_monetary = 'en_US.utf8' # locale for monetary formatting
+    lc_numeric = 'en_US.utf8'  # locale for number formatting
+    lc_time = 'en_US.utf8'     # locale for time formatting
+
+    default_text_search_config = 'pg_catalog.english'
+
+    # Replication
+    max_wal_senders = 5
+    max_wal_size = 1GB
+    min_wal_size = 80MB
+    wal_keep_segments = 32
+    wal_level = hot_standby
+
+    archive_mode = on
+    archive_command = 'test ! -f /data/archive/%f && cp %p /data/archive/%f'
+  primary_pg_hba.conf: |
+    # TYPE  DATABASE        USER            ADDRESS                 METHOD
+    host    replication     replication     0.0.0.0/0               md5
+
+    # "local" is for Unix domain socket connections only
+    local   all             all                                     trust
+
+    # IPv4 local connections:
+    host    all             all             127.0.0.1/32            trust
+
+    # IPv6 local connections:
+    host    all             all             ::1/128                 trust
+
+    # Allow replication connections from localhost, by a user with the
+    # replication privilege.
+    local   replication     all                                     trust
+    host    replication     all             127.0.0.1/32            trust
+    host    replication     all             ::1/128                 trust
+
+    host all all all scram-sha-256
+  standby.conf: |
+    data_directory = '/data/pgdata'
+    hba_file = '/temp-config/pg_hba.conf'
+    ident_file = '/temp-config/pg_ident.conf'
+    hot_standby = on
+
+    port = 5432
+    listen_addresses = '*'
+    max_connections = 100
+    shared_buffers = 128MB
+    dynamic_shared_memory_type = posix
+    max_wal_size = 1GB
+    min_wal_size = 80MB
+    log_timezone = 'Etc/UTC'
+    datestyle = 'iso, mdy'
+    timezone = 'Etc/UTC'
+
+    #locale settings
+    lc_messages = 'en_US.utf8' # locale for system error message
+    lc_monetary = 'en_US.utf8' # locale for monetary formatting
+    lc_numeric = 'en_US.utf8'  # locale for number formatting
+    lc_time = 'en_US.utf8'     # locale for time formatting
+
+    default_text_search_config = 'pg_catalog.english'
+  standby_pg_hba.conf: |
+    # TYPE  DATABASE        USER            ADDRESS                 METHOD
+
+    # "local" is for Unix domain socket connections only
+    local   all             all                                     trust
+
+    # IPv4 local connections:
+    host    all             all             127.0.0.1/32            trust
+
+    # IPv6 local connections:
+    host    all             all             ::1/128                 trust
+
+    host all all all scram-sha-256

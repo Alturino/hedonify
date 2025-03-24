@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Service
+metadata:
+  name: order
+  namespace: {{.Values.namespace}}
+  labels:
+    name: order
+spec:
+  ports:
+    - name: order
+      port: 80
+  selector:
+    name: order

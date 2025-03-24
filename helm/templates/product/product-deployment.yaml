@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product
+  namespace: {{.Values.namespace}}
+spec:
+  replicas: {{.Values.minReplica}}
+  selector:
+    matchLabels:
+      name: product
+  template:
+    metadata:
+      name: product
+      namespace: {{.Values.namespace}}
+      labels:
+        name: product
+    spec:
+      containers:
+      - name: product
+        image: {{.Values.image.hedonify}}
+        imagePullPolicy: IfNotPresent
+        command:
+          - dumb-init
+          - ./ecommerce
+          - product
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: 500m
+          requests:
+            cpu: 200m
+

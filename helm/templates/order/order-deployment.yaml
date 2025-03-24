@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order
+  namespace: {{.Values.namespace}}
+spec:
+  selector:
+    matchLabels:
+      name: order
+  template:
+    metadata:
+      name: order
+      namespace: {{.Values.namespace}}
+      labels:
+        name: order
+    spec:
+      containers:
+      - name: order
+        image: {{.Values.image.hedonify}}
+        imagePullPolicy: IfNotPresent
+        command:
+          - dumb-init
+          - ./ecommerce
+          - order
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: 500m
+          requests:
+            cpu: 200m
+

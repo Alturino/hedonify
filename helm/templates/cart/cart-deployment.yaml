@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cart
+  namespace: {{.Values.namespace}}
+spec:
+  selector:
+    matchLabels:
+      name: cart
+  template:
+    metadata:
+      name: cart
+      namespace: {{.Values.namespace}}
+      labels:
+        name: cart
+    spec:
+      containers:
+      - name: cart
+        image: {{.Values.image.hedonify}}
+        imagePullPolicy: IfNotPresent
+        command:
+          - dumb-init
+          - ./ecommerce
+          - cart
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: 500m
+          requests:
+            cpu: 200m
+

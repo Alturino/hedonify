@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: {{.Values.namespace}}
+spec:
+  serviceName: postgres
+  replicas: 3
+  selector:
+    matchLabels:
+      name: postgres
+  template:
+    metadata:
+      name: postgres
+      namespace: {{.Values.namespace}}
+      labels:
+        name: postgres
+    spec:
+      initContainers:
+        - name: init-postgres
+          image: {{.Values.image.postgres}}
+          command:
+            - bash
+          args:
+            - /config/init.sh
+          env:
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: PGUSER
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_USER
+            - name: PGDATA
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: PGDATA
+            - name: REPLICATION_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: REPLICATION_USER
+            - name: REPLICATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: REPLICATION_PASSWORD
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+            - name: postgres-data
+              mountPath: /data
+            - name: postgres-config
+              mountPath: /config
+              readOnly: false
+            - name: temp-config
+              mountPath: /temp-config
+      containers:
+        - name: postgres
+          image: {{.Values.image.postgres}}
+          args:
+            - "-c"
+            - "config_file=/temp-config/postgresql.conf"
+          env:
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: PGUSER
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_USER
+            - name: PGDATA
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: PGDATA
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+            - name: postgres-data
+              mountPath: /data
+            - name: postgres-config
+              mountPath: /config
+              readOnly: false
+            - name: temp-config
+              mountPath: /temp-config
+          livenessProbe:
+            exec:
+              command: [pg_isready, -d, postgres]
+            initialDelaySeconds: 10
+            timeoutSeconds: 10
+          ports:
+            - name: postgres
+              containerPort: 5432
+      volumes:
+        - name: init
+          emptyDir: {}
+        - name: temp-config
+          emptyDir: {}
+        - name: postgres-config
+          configMap:
+            name: postgres
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: "standard"
+        resources:
+          requests:
+            storage: 1Gi

@@ -1,0 +1,38 @@
+apiVersion: v2
+name: hedonify
+description: Hedonify is a scalable micro-services deliver a seamless and smooth shopping experience. Designed for high concurrency and low latency, Hedonify ensures optimal performance and a smooth shopping experience.
+kubeVersion: ">= 1.32.2"
+
+type: application # application library
+
+version: 1.0.0
+sources:
+  - https://github.com/Alturino/hedonify
+appVersion: 1.0.0
+maintainers:
+  - name: Ricky Alturino
+    email: alturino001@gmail.com
+    url: https://github.com/Alturino
+
+dependencies:
+  - name: grafana/grafana
+    version: 8.10.x
+    repository: https://grafana.github.io/helm-charts
+  - name: grafana/loki
+    version: 6.28.x
+    repository: https://grafana.github.io/helm-charts
+  - name: grafana/promtail
+    version: 6.16.x
+    repository: https://grafana.github.io/helm-charts
+  - name: open-telemetry/opentelemetry-collector
+    version: 0.119.0
+    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+  - name: prometheus-community/node-exporter
+    version: 4.45.0
+    repository: https://prometheus-community.github.io/helm-charts
+  - name: prometheus-community/prometheus
+    version: 27.7.x
+    repository: https://prometheus-community.github.io/helm-charts
+  - name: jaegertracing/jaeger
+    version: 3.4.1
+    repository: https://jaegertracing.github.io/helm-charts

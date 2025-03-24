@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+spec:
+  serviceName: redis
+  selector:
+    matchLabels:
+      app: redis
+  replicas: {{.Values.minReplica}}
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: {{.Values.image.redis}}
+          command: [sh, -c, source /redis-config/init.sh]
+          ports:
+            - name: redis
+              containerPort: 6379
+          volumeMounts:
+            - name: redis
+              mountPath: /redis-data
+            - name: redis-config
+              mountPath: /redis-config
+        - name: redis-sentinel
+          command: [sh, -c, source /redis-config/sentinel.sh]
+          image: {{.Values.image.redis}}
+          volumeMounts:
+            - name: redis-config
+              mountPath: /redis-config
+      volumes:
+        - name: redis-data
+          emptyDir: {}
+        - name: redis-config
+          configMap:
+            name: redis
+  volumeClaimTemplates:
+    - metadata:
+        name: redis
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: standard
+        volumeName: redis
+        resources:
+          requests:
+            storage: "1Gi"

@@ -1,0 +1,8 @@
+appName: hedonify
+namespace: production
+image:
+  postgres: postgres:16.6-alpine3.21
+  redis: redis/redis-stack:7.2.0-v15
+  hedonify: alturino/hedonify:v1.0.1-go1.23.1-alpine3.20
+minReplica: 2
+maxReplica: 5
