@@ -20,9 +20,11 @@ COPY ./vendor/ ./vendor/
 RUN go build -mod vendor main.go
 
 FROM alpine:3.20.3 AS production
-RUN apk add --no-cache dumb-init
+RUN apk add --no-cache dumb-init tzdata
 
 WORKDIR /usr/app/ecommerce/
+
+ENV TZ="Asia/Jakarta"
 
 RUN addgroup --system go && adduser -S -s /bin/false -G go go
 
