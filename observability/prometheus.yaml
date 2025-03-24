@@ -40,16 +40,16 @@ scrape_configs:
   - job_name: "order-service"
     scrape_interval: 3s
     static_configs:
-      - targets: ["order-service:8080"]
+      - targets: ["order-service"]
   - job_name: "product-service"
     scrape_interval: 3s
     static_configs:
-      - targets: ["product-service:8080"]
+      - targets: ["product-service"]
   - job_name: "cart-service"
     scrape_interval: 3s
     static_configs:
-      - targets: ["cart-service:8080"]
+      - targets: ["cart-service"]
   - job_name: "user-service"
     scrape_interval: 3s
     static_configs:
-      - targets: ["user-service:8080"]
+      - targets: ["user-service"]
